@@ -125,130 +125,146 @@ productivity and code reuse. In our case, refactorings are source-to-source tran
 
 \section{Software Restoration}
 \textcolor{red}{cb: not sure we need the subseciton in the background if we have this section, or we can maybe omit or drastically cut this section down}
+
 \noindent
-\emph{Software restoration} is a methodology based on refactoring and code analysis that aims to:
+\emph{Software restoration} is a methodology based on software refactoring and code analysis that aims to improve structure
+of the legacy-parallel C++ code by applying a series of incremental program analysis and transformation steps to rewrite the code into its patterned equivalent. In this way, we aim to improve its maintainability and adaptivity while preserving the optimised performance that is usually achieved using low-level parallel libraries such as pThreads. Software restoration aims to:
 \begin{itemize}
 \item \emph{discover} the instances of common patterns in legacy-parallel code;
 \item \emph{eliminate} the \emph{undesirable} parallelism from the same code;
 \item \emph{replace} the removed parallelism with instances of the parallel patterns;
 \end{itemize}
-The software restoration process takes as an input a legacy-parallel code, for which we currently assume it is written using the \emph{pthreads} library. It then applies a series of incremental program analysis and transformation steps, as depcited in the Figure~\ref{fig:SoftRest}, with the final result being an application based on parallel patterns that is semantically equivalent to the original legacy-parallel version. The software restoration involves the following steps:
+\noindent
+The input to the Software Restoration process is a legacy-parallel C++ pThreads code and the output is the code rewritten to use some of the state-of-the-art parallel pattern library. In this paper, we will focus on the Intel Thread Building Blocks (TBB) library as our target code. The steps involved in the process are depicted in Figure~\ref{fig:SoftRest}. In the description below, we will focus on the code transformation steps, with understanding that the first (parallelism elimination) and the last (pattern introduction) steps are driven by pattern discovery mechanisms described in~\ref{sec:XX}.
+%The software restoration process takes as an input a legacy-parallel code, for which we currently assume it is written using the \emph{pthreads} library. It then applies a series of incremental program analysis and transformation steps, as depcited in the Figure~\ref{fig:SoftRest}, with the final result being an application based on parallel patterns that is semantically equivalent to the original legacy-parallel version. The software restoration involves the following steps:
 
 \begin{figure*}
 \centering
-\includegraphics[width=\textwidth]{images/SoftRest.png}
+\includegraphics[width=\textwidth]{images/HLPP2020Paper.png}
 \caption{Software Restoration Process}
 \label{fig:SoftRest}
 \end{figure*}
 
-\begin{itemize}
-\item \emph{Initial Pattern Discovery.} The initial program analysis step, applied to a legacy-parallel code, discovers i) parts of the threaded code that correspond to instances of parallel patterns; and, ii) parts of the threaded code that represent concurrent computations. Concurrent computations are, for example, separate threads that process the signals received by the user. It is necessary to know which threaded code is concurrent, as sequentialising these portions of code in the next step of the methodlogy can lead to deadlocks. Initial pattern discovery also annotates the legacy-parallel code, denoting the composition of patterns discovered, as well as the components of the pattern. Below is a part of the code for the legacy-parallel version of Matrix Multiplication example.
-
-\begin{lstlisting}
-static void *func (void* arg)
-{
-  data *input = (data *)arg;
-  for (int i = input->start; i < input->end; i++) {
-	  multiply_row_by_matrix(a, i, b, res);
-  }
-  return (void *)0;
-}
 
 
-void threads_create()
-{
-  pthread_attr_t attr;
-  int status;
-  int count=0;
+%% \begin{itemize}
+%% \item \emph{Initial Pattern Discovery.} The initial program analysis step, applied to a legacy-parallel code, discovers i) parts of the threaded code that correspond to instances of parallel patterns; and, ii) parts of the threaded code that represent concurrent computations. Concurrent computations are, for example, separate threads that process the signals received by the user. It is necessary to know which threaded code is concurrent, as sequentialising these portions of code in the next step of the methodlogy can lead to deadlocks. Initial pattern discovery also annotates the legacy-parallel code, denoting the composition of patterns discovered, as well as the components of the pattern. Below is a part of the code for the legacy-parallel version of Matrix Multiplication example.
+
+%% \begin{lstlisting}
+%% static void *func (void* arg)
+%% {
+%%   data *input = (data *)arg;
+%%   for (int i = input->start; i < input->end; i++) {
+%% 	  multiply_row_by_matrix(a, i, b, res);
+%%   }
+%%   return (void *)0;
+%% }
+
+
+%% void threads_create()
+%% {
+%%   pthread_attr_t attr;
+%%   int status;
+%%   int count=0;
   
-  in = (data *) malloc (sizeof(data) * tc);
-  thrs = (pthread_t *) malloc (sizeof(pthread_t) * tc);
+%%   in = (data *) malloc (sizeof(data) * tc);
+%%   thrs = (pthread_t *) malloc (sizeof(pthread_t) * tc);
   
-  status = pthread_attr_init(&attr);
-  if (status != 0)
-    handle_error("Attribute initialisation failed!");
+%%   status = pthread_attr_init(&attr);
+%%   if (status != 0)
+%%     handle_error("Attribute initialisation failed!");
 
-  #pragma farm(func,tc)   
-  for (int tid=0; tid<tc; tid++) {  
-    in[tid].start = count;
-    in[thread_ind].row_end = count + chunk;
-    count += chunk;
+%%   #pragma farm(func,tc)   
+%%   for (int tid=0; tid<tc; tid++) {  
+%%     in[tid].start = count;
+%%     in[thread_ind].row_end = count + chunk;
+%%     count += chunk;
 
-    status = pthread_create(&thr[tid], &attr,
-                            &func, &in[tid]);
-    if (status != 0)
-      handle_error("Creating thread failed!");
-  }
-}
+%%     status = pthread_create(&thr[tid], &attr,
+%%                             &func, &in[tid]);
+%%     if (status != 0)
+%%       handle_error("Creating thread failed!");
+%%   }
+%% }
 
-\end{lstlisting}
+%% \end{lstlisting}
 
-The pragma at the line 24 annotates the for loop as an instance of the \emph{farm} pattern, with \lstinline{func} being the farm worker function and \lstinline{tc} being the number of workers (threads) in the farm.
+%% The pragma at the line 24 annotates the for loop as an instance of the \emph{farm} pattern, with \lstinline{func} being the farm worker function and \lstinline{tc} being the number of workers (threads) in the farm.
 
-\item \emph{Parallelism Removal.} In this first code transformation phase, we remove parts of the threaded code that are safe to remove (that is, all parallel parts except the parts identified as concurrent computations during the initial pattern discovery), and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. This results in a sequential code that is semantically equivalent to the legacy-parallel version, but without parallelism (apart from possible concurrency constructs that are necessery for proper termination of the application). In the case of Matrix Multiplication, the code, after the parallelism removal, has the following form
+\subsubsection{Parallelism Removal}
+The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pThreads code and discovers part of it that correspond to instances of parallel patterns and inserts annotations in the appropriate places in the code, that will guide the subsequent transformation steps. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. This results in a sequential code that is possibly broken (i.e.~it cannot be compiled). % semantically equivalent to the legacy-parallel version, but without parallelism (apart from possible concurrency constructs that are necessery for proper termination of the application). In the case of Matrix Multiplication, the code, after the parallelism removal, has the following form
 
-\begin{lstlisting}
-static void *func (void* arg){
-  data *input = (data *)arg;
-  for (int i = input->start; i < input->end; i++) {
-	  multiply_row_by_matrix(a, i, b, res);
-  }
-  return (void *)0;
-}
+%% \begin{lstlisting}
+%% static void *func (void* arg){
+%%   data *input = (data *)arg;
+%%   for (int i = input->start; i < input->end; i++) {
+%% 	  multiply_row_by_matrix(a, i, b, res);
+%%   }
+%%   return (void *)0;
+%% }
 
-void threads_create() {
-  int status;
-  int count=0;
+%% void threads_create() {
+%%   int status;
+%%   int count=0;
     
-  in = (data *) malloc (sizeof(data) * tc);
+%%   in = (data *) malloc (sizeof(data) * tc);
 
-  #pragma farm(func,tc)   
-  for (int tid=0; tid<tc; tid++) {  
-    in[tid].start = count;
-    in[thread_ind].row_end = count + chunk;
-    count += chunk;
+%%   #pragma farm(func,tc)   
+%%   for (int tid=0; tid<tc; tid++) {  
+%%     in[tid].start = count;
+%%     in[thread_ind].row_end = count + chunk;
+%%     count += chunk;
 
-    func(&in[tid]);
-  }
-}
-\end{lstlisting}
+%%     func(&in[tid]);
+%%   }
+%% }
+%% \end{lstlisting}
 
-Note that all the \emph{pthread} constructs, together with the associated variables (\lstinline{status} and \lstinline{ths}) are removed, and the \lstinline{pthread_create} construct is replaced with the sequential call to the underlying thread function, \lstinline{func}. This is done with the help of the \lstinline{#pragma} annotation introduced by the initial pattern discovery, which tells us what kind of the pattern is there in the code (which, in turn, drives the refactoring decisions) and what is the farm worker function.
+%Note that all the \emph{pthread} constructs, together with the associated variables (\lstinline{status} and \lstinline{ths}) are removed, and the \lstinline{pthread_create} construct is replaced with the sequential call to the underlying thread function, \lstinline{func}. This is done with the help of the \lstinline{#pragma} annotation introduced by the initial pattern discovery, which tells us what kind of the pattern is there in the code (which, in turn, drives the refactoring decisions) and what is the farm worker function.
 
-\item \emph{Feature Cleanup.} After the application of parallelism removal transformations, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts do not prevent the sequential version of application from running, but are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate these artifacts and restore the code in the state as close to the original sequential code from which legacy parallelisation was derived as is possible. This is, again, done using refactorings. As we are focusing on the \emph{farm} and \emph{pipeline} parallelism, the transformations we do is removing the queues of the pipeline stages (for the \emph{pipeline} parallelism) and flattening of data structures (in the case of \emph{farm} parallelism). The Matrix Multiplication code after feature cleanup is given below
+\subsubsection{Code Repair}
+The parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. This can be, for example, due to removing threads from the parallel pipeline code, hence the resulting code being stuck in the first pipeline stage indefinitely and never terminating. The second code transformation step, \emph{code repair}, fixes the code resulting code, turning it into a working sequential C++ code.
 
-\begin{lstlisting}
-static void *func (void* arg)
-{
-  data *input = (data *)arg;
-  for (int i = input->start; i < input->end; i++) {
-	  multiply_row_by_matrix(a, i, b, res);
-  }
-  return (void *)0;
-}
+\subsubsection{Deoptimisation.}
+After the code repair step, the resulting code will be working sequential C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible.
 
 
-void threads_create() {
-  int status;
-  int count=0;
-  in = (data *) malloc (sizeof(data) * tc);
+%\item \emph{Feature Cleanup.}  After the application of parallelism removal transformations, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts do not prevent the sequential version of application from running, but are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate these artifacts and restore the code in the state as close to the original sequential code from which legacy parallelisation was derived as is possible. This is, again, done using refactorings. As we are focusing on the \emph{farm} and \emph{pipeline} parallelism, the transformations we do is removing the queues of the pipeline stages (for the \emph{pipeline} parallelism) and flattening of data structures (in the case of \emph{farm} parallelism). The Matrix Multiplication code after feature cleanup is given below
 
-  #pragma farm(func,tc)   
-  for (int tid=0; tid<tc; tid++) {  
-    in[tid].start = count;
-    in[thread_ind].row_end = count + chunk;
-    count += chunk;
+%% \begin{lstlisting}
+%% static void *func (void* arg)
+%% {
+%%   data *input = (data *)arg;
+%%   for (int i = input->start; i < input->end; i++) {
+%% 	  multiply_row_by_matrix(a, i, b, res);
+%%   }
+%%   return (void *)0;
+%% }
 
-    func(&in[tid]);
-  }
-}
-\end{lstlisting}
-The array \lstinline{in} in the Matrix Multiplication code represented a block view of the flat array of indices of the matrix rows, which was introduced for the purpose of chunking to increase parallelism granularity in the legacy parallelisation based on the \emph{farm} parallelism. The array of all the rows of matrix \lstinline{b} was divided in as many chuncks as there are threads (\lstinline{tc}) and a chunk of this array assigned to each thread. Since modern pattern libraries, such as \emph{OpenMP} and \emph{TBB} can do chunking implicitly and dynamically, based on e.g.~the current system load, there is no need for explicit chunking to remain in the sequential code, even if it is going to be turned into patterned code again. Therefore, we eliminate the array \lstinline{in} and change the loop on line XX to iterate over the array of matrix rows instead.  
+
+%% void threads_create() {
+%%   int status;
+%%   int count=0;
+%%   in = (data *) malloc (sizeof(data) * tc);
+
+%%   #pragma farm(func,tc)   
+%%   for (int tid=0; tid<tc; tid++) {  
+%%     in[tid].start = count;
+%%     in[thread_ind].row_end = count + chunk;
+%%     count += chunk;
+
+%%     func(&in[tid]);
+%%   }
+%% }
+%% \end{lstlisting}
+%% The array \lstinline{in} in the Matrix Multiplication code represented a block view of the flat array of indices of the matrix rows, which was introduced for the purpose of chunking to increase parallelism granularity in the legacy parallelisation based on the \emph{farm} parallelism. The array of all the rows of matrix \lstinline{b} was divided in as many chuncks as there are threads (\lstinline{tc}) and a chunk of this array assigned to each thread. Since modern pattern libraries, such as \emph{OpenMP} and \emph{TBB} can do chunking implicitly and dynamically, based on e.g.~the current system load, there is no need for explicit chunking to remain in the sequential code, even if it is going to be turned into patterned code again. Therefore, we eliminate the array \lstinline{in} and change the loop on line XX to iterate over the array of matrix rows instead.  
   
-\item \emph{Additional Pattern Discovery.} Finally, once the code is restored into the state that is as close to the original sequential version as possible, further pattern discovery analysis can be made on it, as the feature cleanup transformations, and especially flattening of data structures and elimination of intermediate buffers/queues, might result in the code that has additional instances of parallel patterns that were not detected on the original, legacy-parallel code. This might enable us to parallelise the code in a different way than it was done in the original, legacy-parallel version, bringing possible benefits even in terms of performance.
+%\item \emph{Additional Pattern Discovery.} Finally, once the code is restored into the state that is as close to the original sequential version as possible, further pattern discovery analysis can be made on it, as the feature cleanup transformations, and especially flattening of data structures and elimination of intermediate buffers/queues, might result in the code that has additional instances of parallel patterns that were not detected on the original, legacy-parallel code. This might enable us to parallelise the code in a different way than it was done in the original, legacy-parallel version, bringing possible benefits even in terms of performance.
 
-\item \emph{Pattern Introduction.} After the final pattern discovery analysis is performed and the final patterns to be introduced are identified, together with the locations in the code where this will be done, the final step is to introduce instances of parallel patterns into the now-clean sequential code. This is again done using the software refactoring technology, where parts of the sequential code are replaced by calls to the functions from the high-level pattern libraries such as \lstinline{Intel TBB} or \lstinline{OpenMP}. This results in final, patterned parallel code that is semantically equivalent to the starting legacy-parallel code, but with much cleaner structure and simpler, higher-level code that allows easier maintainability, adaptivity and portability.
-\end{itemize}
+
+\subsubsection{Pattern Introduction.}
+After the final pattern discovery analysis is performed and the final patterns to be introduced are identified, together with the locations in the code where this will be done, the final step is to introduce instances of parallel patterns into the now-clean sequential code. The parts of the sequential code are replaced by calls to the functions from the high-level pattern libraries such as \lstinline{Intel TBB} or \lstinline{OpenMP}. This results in final, patterned parallel code that is semantically equivalent to the starting legacy-parallel code, but with much cleaner structure and simpler, higher-level code that allows easier maintainability, adaptivity and portability.
+%\end{itemize}
 
 \section{Restoration Refactorings} 
 
