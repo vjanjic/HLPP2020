@@ -17,7 +17,6 @@
 \section{Introduction}
 
 Parallel patterns are a well established high-level parallel programming models for producing portable, maintainable, adaptive and efficient parallel code. They have been endorsed by some of the biggest IT companies, such as Intel and Microsoft, who have developed their own parallel pattern libraries (Intel TBB, Microsoft PPL etc.) A standard way to use these libraries is to start with the sequential code base, identifying in it the portions of code that are amenable to parallelisation together with the exact parallel pattern to be applied and then instantiating the identified pattern at the identified location in the code, after possibly restructuring the code to accommodate for parallelism. 
-\textcolor{red}{cb: need to check we are not just copying introduction from i.e. IJPP papers...}
 
 %Figure~\ref{fig:matmult} shows an example of sequential and parallel patterned-code of Matrix Multiplication, one of the most common parallel benchmarks. 
 
@@ -81,22 +80,23 @@ Parallel patterns are a well established high-level parallel programming models 
   
 %\end{small}
 
-Sequential code gives the cleanest starting point for introduction of parallel patterns. There exists, however, a large base of \emph{legacy} code \textcolor{red}{cb: we probably need some evidence here to substantiate this claim} that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads} \textcolor{red}{cb: citation?}. This code is usually very hard to read and understand \textcolor{red}{cb: this is subjective, unfortunately. I think it's ok to say, but we don't want to state as fact}, is tailored to a specific parallelisation and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. Even bigger problem, from the software engineering perspective, is the maintainability of the legacy-parallel code - not rarely, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms and sometimes even thread/task scheduling implemented in the code. 
+Sequential code gives the cleanest starting point for introduction of parallel patterns. There exists, however, a large base of \emph{legacy} code  that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads}~\cite{10.5555/263953}. This code is usually very hard to read and understand, is tailored to a specific parallelisation and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. An even bigger problem, from the software engineering perspective, is the maintainability of the legacy-parallel code: commonly, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms and sometimes even thread/task scheduling implemented in the code. 
   
-In this paper, we present a framework \textcolor{red}{cb: or technique? not sure what the best to sell? we say methodology in the contributions} for semi-automatic refactoring of the legacy-parallel code into an equivalent sequential form. This makes it significantly easier to introduce structured parallelism that will be equivalent to the ad-hoc parallelism of the original code. This is also the first step towards our \emph{software restoration} methodology, the ultimate goal of which is to provide semi-automatic way of converting legacy-parallel code in to an equivalent patterned code, therefore increasing its maintainability, adaptivity and portability while keeping the similar or, in some cases, even improving the performance. 
+In this paper, we present a new technique for semi-automatic refactoring of the legacy-parallel code into an equivalent sequential form. This makes it significantly easier to introduce structured parallelism that will be equivalent to the ad-hoc parallelism of the original code. This is also the first step towards our \emph{software restoration} methodology, the ultimate goal of which is to provide semi-automatic way of converting legacy-parallel code in to an equivalent patterned code, therefore increasing its maintainability, adaptivity and portability while keeping the similar or, in some cases, even improving the performance. 
 
 This paper makes the following specific research contributions:
 \begin{enumerate}
-    \item We present a novel software restoration methodology for converting legacy-parallel applications into their structured parallel equivalents;
-    \item We describe refactorings to eliminate parallelism from the legacy-parallel \lstinline{pthreads} code, providing semi-automatic implementation of the first step of software restoration methodology;
-    \item We evaluate these refactorings on a set of benchmarks \textcolor{red}{cb: we mention parsec in the abstract. Need to be consistent}, demonstrating that removal of parallelism can allow us to manually derive the structured parallel code that is comparable to the original legacy-parallel version in terms of performance, while being more portable, adaptive and maintainable.
+    \item We present a novel software restoration technique for converting legacy-parallel applications into their structured parallel equivalents;
+    \item We present a new set of \emph{restoration} refactorings that i) eliminate \lstinline{pthreads} code from legacy C programs, ii) perform \emph{code repair} by further refactoring the code so that it eliminates and bugs introduced by the parallelism elimination stage, and iii) \emph{shaping} refactorings, that prepare the code for parallel pattern introduction, using standard techniques;
+    eliminate parallelism from the legacy-parallel \lstinline{pthreads} code, providing semi-automatic implementation of the first step of software restoration methodology;
+    \item We evaluate these refactorings on a set of benchmarks, demonstrating that removal of parallelism can allow us to manually derive the structured parallel code that is comparable to the original legacy-parallel version in terms of performance, while being more portable, adaptive and maintainable.
 \end{enumerate}
 
 \section{Background} \label{sec:background}
 \textcolor{red}{cb: nice section. I think would improve would be to bullet list the exact disadvanages to legacy parallelism and also advantages to using patterns instead?}
 Legacy-parallel code, written in ad-hoc way using low level parallel libraries such as \emph{pthreads}, is still very much present in various software repositories and projects. This code was usually developed by parallelism experts before the libraries and programming models for structured parallelisation became popular. It is usually tailored to one specific target machine and architecture, and might use highly-customised parallelisation and associated data structures. This makes it very hard to maintain that code, an increasing important feature in software engineering, or to port it to new architectures. It would be ideal if we could transform every legacy-parallel application into a structured parallel programs, written using high-level parallel programming libraries. However, for this to be possible, it is necessary that a well-defined underlying pattern of parallelism actually exists in the code, which can be exploited by instances of patterns. This is not always the case. However, in substantial number of cases, the parallelism in the application is an instance of one of the common patterns, such as farm, pipeline, workpool or stencil. In these cases, it should be possible, automatically or semi-automatically, to \emph{replace} unstructured parallelism with its structured (patterned) equivalent.   
 
-\subsubsection*{Parallel Patterns}
+\subsection{Parallel Patterns}
 %\begin{itemize}
 %\item What are parallel patterns
 %\item Some common patterns
@@ -116,26 +116,47 @@ In this paper, we restrict ourselves to two classical parallel patterns, which w
 The benefits of using parallel patterns lie in clear separation between sequential and parallel parts of the code and high-level description of the underlying parallelism, which makes the patterned applications much easier to maintain, change and adapt to new architectures. 
 %For these reasons, they have been endorsed by most of the top IT companies, who have their own pattern libraries, such as Microsoft PPL~\cite{ppl} and Intel Thread Building Blocks~\cite{tbb}. In addition to that, there are also many popular open-source pattern libraries, such as OpenMP~\cite{openmp} and FastFlow~\cite{openmp}.
 
-\subsubsection*{Software Refactoring}
-\textcolor{red}{cb: need to rewrite this section}
+\subsection{Reading and Writing} \label{sec:readwrite}
+In Section~\ref{sec:refactoring}, we make use of matching various instances of \emph{read} and \emph{write} operations in the source-code. We use standard language definitions for reading and writing to variables.
+If a variable \lstinline{x} appears on the left-hand-side of an assignment, we class the operation as a \emph{write} (here, the variable, \lstinline{x} is assigned the value of the expression, \lstinline{e}).
+
+\begin{lstlisting}
+x = e;
+\end{lstlisting}
+
+\noindent
+If a variable appears in an expression, or on the right-hand-side of an assignment, we class the operation as a \emph{read}. Here, the contents of variable \lstinline{y} are \emph{read}, and \emph{written} to variable \lstinline{x}.
+
+\begin{lstlisting}
+x = y;
+\end{lstlisting}
+
+\subsection{Software Refactoring}
 \noindent
 \emph{Software refactoring} is the process of changing the structure of a program while preserving
 its functional semantics in order, for example, to increase code quality, programming
-productivity and code reuse. In our case, refactorings are source-to-source transformations of the code that are performed \emph{semi-automatically}, under the programmers guidance and possibly with his input. In our previous work, we pioneered refactoring to introduce parallelism~\cite{rpl}, where sequential code is transformed to introduce instances of parallel patterns. We have shown that this can lead to excellent speedups of the resulting code.
+productivity and code reuse. In our case, refactorings are source-to-source transformations of the code that are performed \emph{semi-automatically}, under the programmers guidance and possibly with his input. In our previous work, we pioneered refactoring to introduce parallelism~\cite{rpl}, where sequential code is transformed to introduce instances of parallel patterns. We have shown that this can lead to excellent speedups of the resulting code. Although the term refactoring was first introduced by Opdyke in his PhD thesis in 1992~\cite{opdyke}, and the concept goes at least as far back as the fold/unfold system proposed by Burstall and Darlington in 1977~\cite{darlington77}. In our case, refactorings are source-to-source transformations of the code that are performed \emph{semi-automatically}, under the programmer's guidance, and possibly with their input. 
+ParaFormance \footnote{\url{http://www.paraformance.com}} is a refactoring tool-suite developed at the University of St Andrews that refactors C and C++ programs into parallel versions. It targets a number of different back-ends, including FastFlow, Intel Thread Building Blocks (TBB), OpenMP and GrPPI. It has a number of unique features and is integrated as a plugin into both Eclipse and Microsoft Visual Studio, presenting a menu of various options to its users.
+
+% ParaFormance provides \emph{semi-automated refactorings} to introduce parallel patterns into sequential code; \emph{safety checking} features to find, statically, parallelism related bugs, such as race-conditions, deadlocks and memory collisions; and \emph{pattern discovery}, to find the hotspots in the program that are suitable for parallelism. All refactorings applied to source code in ParaFormance are fully undoable. Furthermore, all operations in ParaFormance come with a full preview feature, enabling users to see the result of the transformation before applying it. 
+%Figure~\ref{fig:safety1} gives a screenshot of the ParaFormance tool integrated into Eclipse. 
+
+
+
 
 \section{Software Restoration}
 \textcolor{red}{cb: not sure we need the subseciton in the background if we have this section, or we can maybe omit or drastically cut this section down}
 
 \noindent
 \emph{Software restoration} is a methodology based on software refactoring and code analysis that aims to improve structure
-of the legacy-parallel C++ code by applying a series of incremental program analysis and transformation steps to rewrite the code into its patterned equivalent. In this way, we aim to improve its maintainability and adaptivity while preserving the optimised performance that is usually achieved using low-level parallel libraries such as pThreads. Software restoration aims to:
+of the legacy-parallel C++ code by applying a series of incremental program analysis and transformation steps to rewrite the code into its patterned equivalent. In this way, we aim to improve its maintainability and adaptivity while preserving the optimised performance that is usually achieved using low-level parallel libraries such as pthreads. Software restoration aims to:
 \begin{itemize}
 \item \emph{discover} the instances of common patterns in legacy-parallel code;
 \item \emph{eliminate} the \emph{undesirable} parallelism from the same code;
 \item \emph{replace} the removed parallelism with instances of the parallel patterns;
 \end{itemize}
 \noindent
-The input to the Software Restoration process is a legacy-parallel C++ pThreads code and the output is the code rewritten to use some of the state-of-the-art parallel pattern library. In this paper, we will focus on the Intel Thread Building Blocks (TBB) library as our target code. The steps involved in the process are depicted in Figure~\ref{fig:SoftRest}. In the description below, we will focus on the code transformation steps, with understanding that the first (parallelism elimination) and the last (pattern introduction) steps are driven by pattern discovery mechanisms described in~\ref{sec:XX}.
+The input to the Software Restoration process is a legacy-parallel C/C++ pthreads code and the output is the code rewritten to use some of the state-of-the-art parallel pattern library. In this paper, we will focus on the Intel Thread Building Blocks (TBB) library as our target code. The steps involved in the process are depicted in Figure~\ref{fig:SoftRest}. In the description below, we will focus on the code transformation steps, with understanding that the first (parallelism elimination) and the last (pattern introduction) steps are driven by pattern discovery mechanisms described in~\ref{sec:XX}.
 %The software restoration process takes as an input a legacy-parallel code, for which we currently assume it is written using the \emph{pthreads} library. It then applies a series of incremental program analysis and transformation steps, as depcited in the Figure~\ref{fig:SoftRest}, with the final result being an application based on parallel patterns that is semantically equivalent to the original legacy-parallel version. The software restoration involves the following steps:
 
 \begin{figure*}
@@ -191,8 +212,8 @@ The input to the Software Restoration process is a legacy-parallel C++ pThreads 
 
 %% The pragma at the line 24 annotates the for loop as an instance of the \emph{farm} pattern, with \lstinline{func} being the farm worker function and \lstinline{tc} being the number of workers (threads) in the farm.
 
-\subsubsection{Parallelism Removal}
-The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pThreads code and discovers part of it that correspond to instances of parallel patterns and inserts annotations in the appropriate places in the code, that will guide the subsequent transformation steps. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. This results in a sequential code that is possibly broken (i.e.~it cannot be compiled). % semantically equivalent to the legacy-parallel version, but without parallelism (apart from possible concurrency constructs that are necessery for proper termination of the application). In the case of Matrix Multiplication, the code, after the parallelism removal, has the following form
+\paragraph{Parallelism Removal.}
+The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pthreads code and discovers part of it that correspond to instances of parallel patterns and inserts annotations in the appropriate places in the code, that will guide the subsequent transformation steps. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. This results in a sequential code that are possibly broken (i.e.~it cannot be compiled). % semantically equivalent to the legacy-parallel version, but without parallelism (apart from possible concurrency constructs that are necessery for proper termination of the application). In the case of Matrix Multiplication, the code, after the parallelism removal, has the following form
 
 %% \begin{lstlisting}
 %% static void *func (void* arg){
@@ -222,11 +243,11 @@ The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the o
 
 %Note that all the \emph{pthread} constructs, together with the associated variables (\lstinline{status} and \lstinline{ths}) are removed, and the \lstinline{pthread_create} construct is replaced with the sequential call to the underlying thread function, \lstinline{func}. This is done with the help of the \lstinline{#pragma} annotation introduced by the initial pattern discovery, which tells us what kind of the pattern is there in the code (which, in turn, drives the refactoring decisions) and what is the farm worker function.
 
-\subsubsection{Code Repair}
+\paragraph{Code Repair.}
 The parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. This can be, for example, due to removing threads from the parallel pipeline code, hence the resulting code being stuck in the first pipeline stage indefinitely and never terminating. The second code transformation step, \emph{code repair}, fixes the code resulting code, turning it into a working sequential C++ code.
 
-\subsubsection{Deoptimisation.}
-After the code repair step, the resulting code will be working sequential C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible.
+\paragraph{De-optimisation.}
+After the code repair step, the resulting code will be working sequential C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible.
 
 
 %\item \emph{Feature Cleanup.}  After the application of parallelism removal transformations, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts do not prevent the sequential version of application from running, but are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate these artifacts and restore the code in the state as close to the original sequential code from which legacy parallelisation was derived as is possible. This is, again, done using refactorings. As we are focusing on the \emph{farm} and \emph{pipeline} parallelism, the transformations we do is removing the queues of the pipeline stages (for the \emph{pipeline} parallelism) and flattening of data structures (in the case of \emph{farm} parallelism). The Matrix Multiplication code after feature cleanup is given below
@@ -262,14 +283,15 @@ After the code repair step, the resulting code will be working sequential C++ co
 %\item \emph{Additional Pattern Discovery.} Finally, once the code is restored into the state that is as close to the original sequential version as possible, further pattern discovery analysis can be made on it, as the feature cleanup transformations, and especially flattening of data structures and elimination of intermediate buffers/queues, might result in the code that has additional instances of parallel patterns that were not detected on the original, legacy-parallel code. This might enable us to parallelise the code in a different way than it was done in the original, legacy-parallel version, bringing possible benefits even in terms of performance.
 
 
-\subsubsection{Pattern Introduction.}
-After the final pattern discovery analysis is performed and the final patterns to be introduced are identified, together with the locations in the code where this will be done, the final step is to introduce instances of parallel patterns into the now-clean sequential code. The parts of the sequential code are replaced by calls to the functions from the high-level pattern libraries such as \lstinline{Intel TBB} or \lstinline{OpenMP}. This results in final, patterned parallel code that is semantically equivalent to the starting legacy-parallel code, but with much cleaner structure and simpler, higher-level code that allows easier maintainability, adaptivity and portability.
+\paragraph{Pattern Introduction.}
+After the final pattern discovery analysis is performed and the final patterns to be introduced are identified, together with the locations in the code where this will be done, the final step is to introduce instances of parallel patterns into the now-clean sequential code. The parts of the sequential code are replaced by calls to the functions from the high-level pattern libraries such as \emph{Intel TBB}~\cite{DBLP:reference/parallel/X11pz} or \emph{OpenMP}~\cite{10.1109/99.660313}. This results in final, patterned parallel code that is semantically equivalent to the starting legacy-parallel code, but with much cleaner structure and simpler, higher-level code that allows easier maintainability, adaptivity and portability.
 %\end{itemize}
 
-\section{Restoration Refactorings} 
+\section{Restoration Refactorings} \label{sec:refactoring}
 
-In this section we propose three refactorings to \emph{restore} C applications that been previously parallelised using low-level pthread parallelism techniques.
-These refactorings are categorised by i) eliminating the existing \emph{pthread concurrency} by removing the calls to pthread functions, to they can be later replaced with calls to structured high-level algorithmic skeletons, in Section~\ref{sec:removepthread}, ii) removing pthread instances of a parallel farm, in Section~\ref{sec:removefarm} and iii) removing pthread instances of pipelines, in Section~\ref{sec:removepipeline}. We explain each of these refactorings one by one in the following subsections.
+In this section we propose three refactorings to \emph{restore} C applications that have been previously parallelised using low-level pthread parallelism techniques. We divide our restoration refactorings into specific examples of eliminating \emph{farm} parallel (described in Section~\ref{sec:removefarm}), and removing \emph{pipeline} parallelism (described in Section~\ref{sec:removepipeline}).
+These restoration refactorings on both farm and pipelines are categorised by i) \emph{eliminating} the existing pthread concurrency by removing the calls to pthread functions, to they can be later replaced with calls to structured high-level algorithmic skeletons (described in Section~\ref{sec:removepthread}), ii) \emph{repairing} the eliminated versions of the code, which may have some bugs introduced by removing the underlying concurrency logic, and iii) \emph{shaping} the code, into order to structure it in a way that parallel patterns can be easily introduced. 
+We explain each of these refactorings one by one in the following subsections.
 
 \subsection{Removing Pthread Concurrency} \label{sec:removepthread}
 
@@ -421,7 +443,7 @@ void *StageTwo(void *threadarg2) {
 
 %Simplified PGPry example (Listing~\ref{lst:simplepipeexample}). A two-stage pipeline with farms for the stages. An integer represents the (size of a) buffer between stages. Parallelism removal assumes perfect scheduling for the sequential version; practically, we do not see exactly the same behaviour for the sequential version as we do the parallel versions (for all runs of the parallel version).
 
-Instances of the \emph{pipeline} pattern (see Section~\ref{sec:background}) occur frequently in legacy code involving pthreads. Typically, these instances incur two or more stages that interact with each other in an implicit way. Typically, through the update of a shared variable between threads. For example, Listing~\ref{lst:simplepipeexample} shows a two-stage pipeline example, where each stage is also a \emph{farm}. This example is a simplified version of the PGPry example, taken from the Parsec Benchmark Suite~\cite{parsec}. In the example, an integer is used to represent the size of a buffer between stages (\lstinline|i1| at Line 6, and \lstinline|i2| at Line 18).
+Instances of the \emph{pipeline} pattern (see Section~\ref{sec:background}) occur frequently in legacy code involving pthreads. Typically, these instances incur two or more stages that interact with each other in an implicit way. For example, through the update of a shared variable between threads. For example, Listing~\ref{lst:simplepipeexample} shows a two-stage pipeline example, where each stage is also a \emph{farm}. This example is a simplified version of the PGPry example, taken from the Parsec Benchmark Suite~\cite{parsec}. In the example, an integer is used to represent the size of a buffer between stages (\lstinline|i1| at Line 6, and \lstinline|i2| at Line 18).
 These stages are:
 
 \textbf{Stage 1} removes the direct calls to the pthread API, (as described in Section~\ref{sec:removepthread}). For example, this includes in \lstinline|main|, replacing \lstinline|pthread_create| calls with an assignment to \lstinline|status| and a call to the spawned function. This ensures that \lstinline|status| is initialised for the subsequent uses of it; and that values assigned should be the default successful returned value of \lstinline|pthread_create|.
@@ -453,7 +475,7 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {...}
 \end{lstlisting}
 
 Typically, the original stages of the pipeline will contain loops; these will be unified together by forming the disjunction of the conditionals from all the loops.
- This process is done by unifying from the first stage, then the second stage, and so on. There may be duplicated portions of the code as a result of the stage. This duplicate code can be filter out by using common techniques, such as [BLAH]. Any code that occurs before any \emph{read} or \emph{write} operations on any shared data can simply be inserted into the unified stage. 
+ This process is done by unifying from the first stage, then the second stage, and so on. There may be duplicated portions of the code as a result of the stage. This duplicate code can be filtered out by using common \emph{clone detection} techniques, commonly found in the literature, such as [BLAH]. Any code that occurs before any \emph{read} or \emph{write} operations on any shared data can simply be inserted into the unified stage. 
  
 \begin{lstlisting}[frame=single]
 int i1;
@@ -465,17 +487,17 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
 }
 \end{lstlisting}
 
-\textbf{Stage 3} attempts to match the \emph{reads} and \emph{writes} to the shared state that occurs in the various original stages of the pipelines. These need to be unified in such a way that order of execution is preserved in the unified stage. Operations on the state can be matched accordingly. Match \emph{read} operations on the shared state with other \emph{read} and \emph{write} operations on the shared state. In the example, a \emph{read} is matched with a \emph{read}, resulting in picking the \emph{read} operation in the first stage; here, the assignment to \lstinline|loc_shared|, occurring in \lstinline|StageOne| and \lstinline|StageTwo| (lines 8 and 20) of Listing~\ref{lst:simplepipeexample} can be merged together to form a single assignment statement (as illustrated at Line 4 in the listing below).
+\textbf{Stage 3} attempts to match the \emph{reads} and \emph{writes} to the shared state that occurs in the various original stages of the pipelines. These need to be unified in such a way that order of execution is preserved in the unified stage. Operations on the state can be matched accordingly. Match \emph{read} operations on the shared state with other \emph{read} and \emph{write} operations on the shared state. In the example, a \emph{read} is matched with a \emph{read}, resulting in picking the \emph{read} operation in the first stage; here, the assignment to \lstinline|loc_shared|, occurring in \lstinline|StageOne| and \lstinline|StageTwo| (Lines 8 and 20) of Listing~\ref{lst:simplepipeexample} can be merged together to form a single assignment statement (as illustrated at Line 4 in the listing below).
 \begin{lstlisting}[frame=single]
 int i1;
 int i2;
 for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
-int loc_shared = shared;
-...
+   int loc_shared = shared;
+   ...
 }
 \end{lstlisting}
 
-A \emph{write} operation in the first stage is matched with another \emph{write} operation in the second (and subsequent) stages. In Listing~\ref{lst:simplepipeexample}, we see a write to the shared variable \lstinline|loc_shared| on Line 12, in \lstinline|StageOne| and also on Line 24, in \lstinline|StageTwo|. Here, we execute the write instruction \lstinline|loc_shared++| from \lstinline|StageOne| first, and then we execute the write instruction, \lstinline|loc_shared--|, from \lstinline|StageTwo|. Indeed, in this example, there is an interesting observation that these two operations will functionally cancel each other out, as incrementing a variable, and then immediately decrementing it, is obviously a \emph{cancelling} behaviour; however, reasoning about the behaviour of the operations outside of a basic \emph{read/write} behaviour is beyond the scope of this paper.
+A \emph{write} operation (see Section~\ref{sec:readwrite}) in the first stage is matched with another \emph{write} operation in the second (and subsequent) stages. In Listing~\ref{lst:simplepipeexample}, we see a \emph{write} to the shared variable \lstinline|loc_shared| on Line 12, in \lstinline|StageOne| and also on Line 24, in \lstinline|StageTwo|. Here, we execute the \emph{write} instruction \lstinline|loc_shared++| from \lstinline|StageOne| first, and then we execute the \emph{write} instruction, \lstinline|loc_shared--|, from \lstinline|StageTwo|. Indeed, in this example, there is an interesting observation that these two operations will functionally cancel each other out, as incrementing a variable, and then immediately decrementing it, is obviously a \emph{cancelling} behaviour; however, reasoning about the behaviour of the operations outside of a basic \emph{read/write} behaviour is beyond the scope of this paper.
 
   \begin{lstlisting}[frame=single]
 int i1;
@@ -503,7 +525,7 @@ int main () {
 \end{lstlisting}
 
 
-\textbf{Stage 5} the parallelisation of the sequentialised version of the code can now be performed. Here, we now take the introduced function, and derive \emph{pipeline} stages from it, so that a patterned version can be introduced, using a framework like GrPPI [REF]. Here, any free variables in the refactored functions/pipeline stages need to be captured. Therefore a \lstinline|struct| is declared at Lines 1 and 13, representing the return types of the pipline stages \lstinline|S1| and \lstinline|S2|. Any global variables that previously were assigned to the results of these stages are now captured; for example at Lines 31 and 35. Note here that \lstinline{S2} takes as a parameter the updated variable \lstinline{shared} at Line 33. 
+\textbf{Stage 5} the parallelisation of the sequentialised version of the code can now be performed. Here, we now take the introduced function, and derive \emph{pipeline} stages from it, so that a patterned version can be introduced, using a framework like OpenMP [REF], Intel's Threading Building Blocks [REF], or GrPPI [REF]. Here, any free variables in the refactored functions/pipeline stages need to be captured. Therefore a \lstinline|struct| is declared at Lines 1 and 13, representing the return types of the pipline stages \lstinline|S1| and \lstinline|S2|. Any global variables that previously were assigned to the results of these stages are now captured; for example at Lines 31 and 35. Note here that \lstinline{S2} takes as a parameter the updated variable \lstinline{shared} at Line 33. 
 
 \begin{lstlisting}[frame=single]
 int main() {
@@ -861,8 +883,23 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
 
 \section{Related Work}
 
+\paragraph{Software Restoration}
+
+The concept of a \emph{systematic}, or \emph{structured} approach to \emph{software restoration} has, to our knowledge, been largely previously unexplored. A concept that is probably most related to \emph{software restoration} is that of \emph{reverse engineering}, which is a technique used to retrieve high-level requirements from existing sequential code~\cite{10.1145/287000.287001}\cite{10.1145/337180.337234}. Yu et al.~\cite{10.1109/RE.2005.61} proposed a technique that attempts to use refactoring to try and recover requirements goal models from legacy code. However, the work only targets sequential code and only capture high-level information that is not useful for parallel restoration.
+
+\paragraph{Refactoring}
+Refactoring has roots in Burstall and Darlington's fold/unfold system~\cite{darlington77}, and has been applied to a wide range of applications as an approach to program transformation~\cite{mens_refactoring}, with refactoring tools a feature of popular IDEs including, \textit{i.a.}, Eclipse~\cite{EclipseWeb} and Visual Studio~\cite{VisualStudioWeb}.
+Previous work on parallelisation \textit{via} refactoring has primarily focussed on the introduction and manipulation of parallel pattern libraries in C++~\cite{brownagricultural,DBLP:conf/pdp/JanjicBMHDAG16} and Erlang~\cite{hlpp,DBLP:journals/cai/BarwellBHTB16}. Another approach
+has been the automated introduction of annotations in the form of
+C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallel loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
+
+\paragraph{Parallel Patterns}
+High-level parallel patterns, sometimes known as \emph{algorithmic skeletons} offer high-level abstraction over low-level concurrency methods~\cite{Asanovic:2009:VPC,DBLP:journals/spe/Gonzalez-VelezL10}.
+A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{DBLP:journals/mis/JinLWY15}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
+Since patterns are well-defined, rewrites can be used to automatically explore the space of equivalent patterns, e.g.\ optimising for performance~\cite{DBLP:conf/europar/MatsuzakiKIHA04,DBLP:conf/ipps/GorlatchWL99} or generating optimised code as part of a DSL~\cite{DBLP:conf/dagstuhl/Gorlatch03}. Moreover, since patterns are architecture-agnostic, patterns have been similarly implemented for multiple architectures~\cite{DBLP:conf/cgo/HagedornSSGD18,DBLP:conf/parco/ReyesL15}.
+
 \section{Conclusions and future work} \label{sec:Conclusions} 
-In this abstract, we have outlined the software restoration methodology for converting legacy-parallel applications into structured parallel code using parallel patterns. This ensures portability, maintainability and adaptivity of parallel code while maintaining, and sometimes even increasing, performance. In the full version of this paper, we will also present refactorings to eliminate ad-hoc pthread parallelism from the legacy-parallel code, which is a first step in the proposed methodology of software restoration. Furthermore, we will evaluate software restoration on a number of realistic benchmarks and use-cases, doing parallelism removal automatically and other steps manually, and demonstrating benefit in terms of gained performance, increased adaptivity, portability and maintainability.
+In this paper, we have outlined the software restoration methodology for converting legacy-parallel applications into structured parallel code using parallel patterns. This ensures portability, maintainability and adaptivity of parallel code while maintaining, and sometimes even increasing, performance. In the full version of this paper, we will also present refactorings to eliminate ad-hoc pthread parallelism from the legacy-parallel code, which is a first step in the proposed methodology of software restoration. Furthermore, we will evaluate software restoration on a number of realistic benchmarks and use-cases, doing parallelism removal automatically and other steps manually, and demonstrating benefit in terms of gained performance, increased adaptivity, portability and maintainability.
 
 \appendix
 

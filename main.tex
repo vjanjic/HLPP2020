@@ -1,4 +1,4 @@
-\documentclass[runningheads]{llncs}
+\documentclass[smallextended]{svjour3}
 
 \usepackage{booktabs} % For formal tables
 
@@ -78,24 +78,30 @@
 % If the paper title is too long for the running head, you can set
 % an abbreviated paper title here
 %
-\author{Vladimir Janjic\inst{1}\orcidID{0000-1111-2222-3333} \and
-Christopher Brown\inst{2}\orcidID{1111-2222-3333-4444} \and
-Adam Barwell\inst{2}\orcidID{2222--3333-4444-5555}}
-%
-\authorrunning{V. Janjic et al.}
-% First names are abbreviated in the running head.
-% If there are more than two authors, 'et al.' is used.
-%
-\institute{The University of Dundee, Scotland, UK \\
-\email{vjanjic001@dundee.ac.uk}
-\and
-The University of St Andrews, Scotland, UK. \\
-\email{cmb21@st-andrews.ac.uk, adb32@st-andrews.ac.uk}}
-%
-\maketitle              % typeset the header of the contribution
+\author{Vladimir Janjic         \and
+	Christopher Brown \and 
+	Adam D. Barwell \and
+}
+
+%\authorrunning{Short form of author list} % if too long for running head
+
+\institute{
+		V. Janjic \at
+	School of Science and Engineering, University of Dundee, UK. \\
+	\email{vjanjic001@dundee.ac.uk}
+	\and
+	C. Brown, A. Barwell \at
+	School of Computer Science, University of St Andrews, UK. \\
+	\email{cmb21,adb23@st-andrews.ac.uk}           %  \\
+}
+
+\date{Received: date / Accepted: date}
+% The correct dates will be entered by the editor
+
+\maketitle
 %
 \begin{abstract}
-    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive and portable whilst also achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} that was developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is tedious and error-prone, due to XX. In this paper, we present the first step towards semi-automatic rewriting of the legacy-parallel code into the pattern-based structured code. We describe refactorings to \emph{eliminate} ad-hoc parallelism from the code, effectively \emph{sequentialising} the code behaviour and resetting its structure. We demonstrate our restoration technique on a number of benchmarks  (taken from the Parsec benchmark suite) so that we are able to eliminate ad-hoc parallelism from the code based on \emph{pthreads}, allowing us to introduce patterned parallelism in the resulting code.
+    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive and portable whilst also achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} that was developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is tedious and error-prone, due to typical concurrency and pthreading code being closing intertwined through the business logic of the program. In this paper, we present the first step towards semi-automatic rewriting of the legacy-parallel code into the pattern-based structured code. We describe refactorings that \emph{restore} pthreaded C programs to their equivalent sequential well-structured form, removing the ad-hoc parallelism from the code, effectively \emph{sequentialising} the code behaviour and resetting its structure. We demonstrate our restoration technique on a number of benchmarks so that we are able to eliminate ad-hoc parallelism from the code based on \emph{pthreads}, allowing us to introduce patterned parallelism in the resulting code.
 
 \keywords{Parallel patterns, restoration, pthreads, refactoring, code analysis}
 \end{abstract}
@@ -108,7 +114,9 @@ The University of St Andrews, Scotland, UK. \\
 
 \input{main-body}
 
-\bibliographystyle{ACM-Reference-Format}
-\bibliography{pact2019}
+\bibliographystyle{spmpsci}      % mathematics and physical sciences
+%\bibliographystyle{spphys}       % APS-like style for physics
+%\bibliography{hlpp,RePhrase,rephrase2}   % name your BibTeX data base
+\bibliography{pruned}
 
 \end{document}
