@@ -145,19 +145,23 @@ ParaFormance \footnote{\url{http://www.paraformance.com}} is a refactoring tool-
 
 
 \section{Software Restoration}
-\textcolor{red}{cb: not sure we need the subseciton in the background if we have this section, or we can maybe omit or drastically cut this section down}
+%\textcolor{red}{cb: not sure we need the subseciton in the background if we have this section, or we can maybe omit or drastically cut this section down}
 
 \noindent
-\emph{Software restoration} is a methodology based on software refactoring and code analysis that aims to improve structure
-of the legacy-parallel C++ code by applying a series of incremental program analysis and transformation steps to rewrite the code into its patterned equivalent. In this way, we aim to improve its maintainability and adaptivity while preserving the optimised performance that is usually achieved using low-level parallel libraries such as pthreads. Software restoration aims to:
+\emph{Software restoration} is a methodology %based on software refactoring and code analysis
+for improving structure of the legacy-parallel C++ code by applying a series of incremental program analysis and transformation steps to rewrite the code into its patterned equivalent. %In this way, w
+Software restoration is based on software refactoring and code analysis and aims to:
 \begin{itemize}
 \item \emph{discover} the instances of common patterns in legacy-parallel code;
 \item \emph{eliminate} the \emph{undesirable} parallelism from the same code;
 \item \emph{replace} the removed parallelism with instances of the parallel patterns;
 \end{itemize}
 \noindent
-The input to the Software Restoration process is a legacy-parallel C/C++ pthreads code and the output is the code rewritten to use some of the state-of-the-art parallel pattern library. In this paper, we will focus on the Intel Thread Building Blocks (TBB) library as our target code. The steps involved in the process are depicted in Figure~\ref{fig:SoftRest}. In the description below, we will focus on the code transformation steps, with understanding that the first (parallelism elimination) and the last (pattern introduction) steps are driven by pattern discovery mechanisms described in~\ref{sec:XX}.
-%The software restoration process takes as an input a legacy-parallel code, for which we currently assume it is written using the \emph{pthreads} library. It then applies a series of incremental program analysis and transformation steps, as depcited in the Figure~\ref{fig:SoftRest}, with the final result being an application based on parallel patterns that is semantically equivalent to the original legacy-parallel version. The software restoration involves the following steps:
+The input to the Software Restoration process is a legacy-parallel C/C++ code that is based on some low-level parallelism library, such as pthreads, and the output is the semantically-equivalent code based on parallel patterns. In this way, we obtained well-structured code based on higher level of parallel abstraction, which is significantly more maintainable and adaptive while still preserving
+good performance of the original, highly-tuned parallel version. In this paper, we will focus on the GrPPI library as our target code. This allows us to then generate the final code for a number of different parallel backends, such as Intel TBB, OpenMP and Fastflow.
+
+Software Restoration methodology consists of a number of steps, each applying a class of code transformations, some of which are driven by the pattern discovery code analysis.  The whole process is depicted in Figure~\ref{fig:SoftRest}. In the description below, we will focus on the code transformation steps. As a running example to demonstrate the transformation, we will use a synthetic parallel pipeline code, given in the Listing~\ref{lst:simplePipe}.
+
 
 \begin{figure*}
 \centering
@@ -166,85 +170,117 @@ The input to the Software Restoration process is a legacy-parallel C/C++ pthread
 \label{fig:SoftRest}
 \end{figure*}
 
+%\begin{figure}
+\begin{lstlisting}[caption=Original Simple Pipeline Code,frame=single,label=lst:simplePipe]
+int main(int argc, char *argv[]) {
+  ...
+  /* initialize mutex and condition variable */
+  pthread_mutex_init(&barrier, NULL);
+  pthread_cond_init(&go, NULL);
+  ...
+  /* create the workers, then wait for them to finish */
+  for (i = 0; i < numWorkers; i++)
+    pthread_create(&workerid[i], &attr, Worker, (void *) i);
+  for (i = 0; i < numWorkers; i++)
+    pthread_join(workerid[i], NULL);
+  ...
+}
 
+void *Worker(void *arg) {
+  long myid = (long) arg;
+  int i;
+  int mystate = myid;
+  // tick over while the first item "reaches" me
+  for (i=0; i<myid; i++) {
+    Barrier();
+  }
+  // process items one by one
+  for (i=0; i<dataSize; i++) {
+    mystate += data[i]+1;       // I am stateful
+    data[i] = data[i]+mystate;  // mystate affects output
+    Barrier();
+  }
+  // tick over while the pipeline drains
+  for (i=0; i<numWorkers-myid-1; i++) {
+    Barrier();
+  }
+}
+\end{lstlisting}
 
-%% \begin{itemize}
-%% \item \emph{Initial Pattern Discovery.} The initial program analysis step, applied to a legacy-parallel code, discovers i) parts of the threaded code that correspond to instances of parallel patterns; and, ii) parts of the threaded code that represent concurrent computations. Concurrent computations are, for example, separate threads that process the signals received by the user. It is necessary to know which threaded code is concurrent, as sequentialising these portions of code in the next step of the methodlogy can lead to deadlocks. Initial pattern discovery also annotates the legacy-parallel code, denoting the composition of patterns discovered, as well as the components of the pattern. Below is a part of the code for the legacy-parallel version of Matrix Multiplication example.
-
-%% \begin{lstlisting}
-%% static void *func (void* arg)
-%% {
-%%   data *input = (data *)arg;
-%%   for (int i = input->start; i < input->end; i++) {
-%% 	  multiply_row_by_matrix(a, i, b, res);
-%%   }
-%%   return (void *)0;
-%% }
-
-
-%% void threads_create()
-%% {
-%%   pthread_attr_t attr;
-%%   int status;
-%%   int count=0;
-  
-%%   in = (data *) malloc (sizeof(data) * tc);
-%%   thrs = (pthread_t *) malloc (sizeof(pthread_t) * tc);
-  
-%%   status = pthread_attr_init(&attr);
-%%   if (status != 0)
-%%     handle_error("Attribute initialisation failed!");
-
-%%   #pragma farm(func,tc)   
-%%   for (int tid=0; tid<tc; tid++) {  
-%%     in[tid].start = count;
-%%     in[thread_ind].row_end = count + chunk;
-%%     count += chunk;
-
-%%     status = pthread_create(&thr[tid], &attr,
-%%                             &func, &in[tid]);
-%%     if (status != 0)
-%%       handle_error("Creating thread failed!");
-%%   }
-%% }
-
-%% \end{lstlisting}
-
-%% The pragma at the line 24 annotates the for loop as an instance of the \emph{farm} pattern, with \lstinline{func} being the farm worker function and \lstinline{tc} being the number of workers (threads) in the farm.
+\noindent
+In the lines 8--9, a number of worker threads (one per stage of a pipeline) is created, each of them executing \lstinline{Worker} function. In the lines 10--11, the main function waits for completion of all pipeline stages. \lstinline{Worker} function iteratively processes the data items from the \lstinline{data} array. This is done in super-steps, which are synchronised using the \lstinline{Barrier} function. In lines 20-22, the $n$-th stage idles for the first $n-1$ super-steps, simulating the waiting for the pipeline queues to have items available for processing. The loop in lines 24--28 is the actual work that the pipeline stage performs. Each stage $n$ is stateful (represented by \lstinline{mystate} variable) and, starting from the $n$-th super-step, each stage processes all the item in the \lstinline{data} array. The stage state is first updated (line 25) and then the item $i$ of the array is updated (line 26). Each iteration of the loop is one step of the whole computation and the barrier at the end of the loop (line 27) signalises the end of the step. Note that in each super-steap, each of the threads operates on different item in the \lstinline{data} array, so there is no need for locking of this array. Finally, the loop in the lines 30--32 waits for the pipeline to drain. 
 
 \paragraph{Parallelism Removal.}
-The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pthreads code and discovers part of it that correspond to instances of parallel patterns and inserts annotations in the appropriate places in the code, that will guide the subsequent transformation steps. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. This results in a sequential code that are possibly broken (i.e.~it cannot be compiled). % semantically equivalent to the legacy-parallel version, but without parallelism (apart from possible concurrency constructs that are necessery for proper termination of the application). In the case of Matrix Multiplication, the code, after the parallelism removal, has the following form
+The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pthreads code and discovers part of it that correspond to instances of parallel patterns. In our example, this stage identifies the pipeline created in lines 8--9, with \lstinline{Worker} being the worker function for each stage. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. For our example, this results in a sequential code given in Listing~\ref{lst:pipeParRem}.
 
-%% \begin{lstlisting}
-%% static void *func (void* arg){
-%%   data *input = (data *)arg;
-%%   for (int i = input->start; i < input->end; i++) {
-%% 	  multiply_row_by_matrix(a, i, b, res);
-%%   }
-%%   return (void *)0;
-%% }
-
-%% void threads_create() {
-%%   int status;
-%%   int count=0;
+\begin{lstlisting}[caption=Simple Pipeline Code with Parallelism Removed, frame=single, label=lst:pipeParRem]
+int main(int argc, char *argv[]) {
+  ...
+  /* pthread_mutex and pthread_cond calls removed */
+  ...
+  /* create the workers, then wait for them to finish */
+  for (i = 0; i < numWorkers; i++)
+    Worker(i); /* pthread_create replaced with the call to the underlying function */
+  /* pthread_join calls removed */
     
-%%   in = (data *) malloc (sizeof(data) * tc);
+}
 
-%%   #pragma farm(func,tc)   
-%%   for (int tid=0; tid<tc; tid++) {  
-%%     in[tid].start = count;
-%%     in[thread_ind].row_end = count + chunk;
-%%     count += chunk;
+void *Worker(void *arg) {
+  long myid = (long) arg;
+  int i;
+  int mystate = myid;
+  // tick over while the first item "reaches" me
+  for (i=0; i<myid; i++) {
+    SeqBarrier();
+  }
+  // process items one by one
+  for (i=0; i<dataSize; i++) {
+    mystate += data[i]+1;       // I am stateful
+    data[i] = data[i]+mystate;  // mystate affects output
+    SeqBarrier();
+  }
+  // tick over while the pipeline drains
+  for (i=0; i<numWorkers-myid-1; i++) {
+    SeqBarrier();
+  }
+}
+\end{lstlisting}
 
-%%     func(&in[tid]);
-%%   }
-%% }
-%% \end{lstlisting}
+\noindent
+Note that all the \lstinline{pthread_} calls from the Listing~\ref{lst:simplePipe} have either been removed or replaced with the calls to the underlying functions (in the case of \lstinline{pthread_create}). Note also that the parallel barrier (\lstinline{Barrier}) is replaced with a sequential one (\lstinline{SeqBarrier}). In reality, we would just change the \lstinline{Barrier} function by eliminating the \lstinline{pthread_} constructs from it and retain the same function name for it, but the function name here is changed for clarity reasons. The two versions of the barrier function are given in Figure~\ref{fig:barriers}. In this way, we have obtained the sequential code.
 
-%Note that all the \emph{pthread} constructs, together with the associated variables (\lstinline{status} and \lstinline{ths}) are removed, and the \lstinline{pthread_create} construct is replaced with the sequential call to the underlying thread function, \lstinline{func}. This is done with the help of the \lstinline{#pragma} annotation introduced by the initial pattern discovery, which tells us what kind of the pattern is there in the code (which, in turn, drives the refactoring decisions) and what is the farm worker function.
+\begin{figure}[ht]
+  \begin{subfigure}{.45\textwidth}
+    \begin{lstlisting}[caption=Parallel Barrier]
+      void Barrier() {
+        pthread_mutex_lock(&barrier);
+        numArrived++;
+        if (numArrived == numWorkers) {
+          numArrived = 0;
+          pthread_cond_broadcast(&go);
+        } else
+        pthread_cond_wait(&go, &barrier);
+        pthread_mutex_unlock(&barrier);
+      }
+    \end{lstlisting}
+  \end{subfigure}
+
+    \begin{subfigure}{.45\textwidth}
+    \begin{lstlisting}[caption=Sequential Barrier]
+      void SeqBarrier() {
+        numArrived++;
+        if (numArrived == numWorkers) {
+          numArrived = 0;
+        } 
+      }
+    \end{lstlisting}
+  \end{subfigure}
+
+\end{figure}
+
 
 \paragraph{Code Repair.}
-The parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. This can be, for example, due to removing threads from the parallel pipeline code, hence the resulting code being stuck in the first pipeline stage indefinitely and never terminating. The second code transformation step, \emph{code repair}, fixes the code resulting code, turning it into a working sequential C++ code.
+The parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. This can be, for example, due to removal of the threaded code in a parallel pipeline, which can result the obtained sequential code to be stuck forever in the first stage of the pipeline, depending on how the synchronisation between stages is implemented. Or, alternatively, if there are explicit queues between pipeline stages, the first stage running could just write data into its output buffer which would, because the data from it is not consumed by the second stage immediately, become overflowed, therefore breaking the code. The next step in Software Restoration is, therefore, to repair the potentially broken code that is the output of the previous step. Note that in our example there is no need for this, because the sequential code obtained after parallelism removal can be compiled and run (even though it does more work than necessary, since sequential barriers are still present in it.
 
 \paragraph{De-optimisation.}
 After the code repair step, the resulting code will be working sequential C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible.
