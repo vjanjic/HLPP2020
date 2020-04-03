@@ -45,16 +45,31 @@ double get_current_time()
   return result;
 }
 
+inline bool exists_test1 (const std::string& name) {
+    if (FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        return true;
+    } else {
+        return false;
+    }   
+}
+
+inline const char * const BoolToString(bool b)
+{
+  return b ? "true" : "false";
+}
+
 ushort *read_image(const char *fileName, png_uint_32 height) {
   int i, header_size = 8, is_png;
   char header[8];
+   cout << BoolToString(exists_test1(fileName)) << endl;
+
   FILE *fp = fopen(fileName,"rb");
   png_structp png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
   png_infop info_ptr = png_create_info_struct(png_ptr), end_info = png_create_info_struct(png_ptr);
   png_bytep raw_data;
   png_bytepp row_pointers;
   png_uint_32 row_bytes;
-
   fread (header, 1, header_size, fp);
   is_png = !png_sig_cmp((png_bytep)header,0,header_size);
   if (!is_png) { printf("not a png\n"); return(NULL);}
@@ -73,8 +88,9 @@ ushort *read_image(const char *fileName, png_uint_32 height) {
 
 }
 
+
 string_p get_image_name(int i) {
-	string_p image_n = new string("images/image" + to_string(i) + ".png");
+	string_p image_n = new string("./input/image" + to_string(i) + ".png");
     // *image_name = "images/image" + to_string(i) + ".png";
     // strcpy(image_name_c, image_name.c_str());
     cout << *image_n << endl;

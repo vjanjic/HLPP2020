@@ -1,4 +1,21 @@
+blackscholes & matmult (maybe PTH_fluidanimate) for pure farm
 
+a reduced pgpry & bfs for pure pipeline
+
+convolution as a combination
+
+
+cholmsky - 
+nqueens - is a pipeline of two farms
+
+
+Ordering
+
+- blackscholes
+- mandelbrot
+- nqueens (*)
+- cholesky (*)
+- convolution
 
 -- [Pipeline] -------------------------------------------------------------------------------------
 

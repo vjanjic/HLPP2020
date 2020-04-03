@@ -325,7 +325,7 @@ After the final pattern discovery analysis is performed and the final patterns t
 
 \section{Restoration Refactorings} \label{sec:refactoring}
 
-In this section we propose three refactorings to \emph{restore} C applications that have been previously parallelised using low-level pthread parallelism techniques. We divide our restoration refactorings into specific examples of eliminating \emph{farm} parallel (described in Section~\ref{sec:removefarm}), and removing \emph{pipeline} parallelism (described in Section~\ref{sec:removepipeline}).
+In this section we propose three refactorings to \emph{restore} C applications that have been previously parallelised using low-level pthread parallelism techniques. We divide our restoration refactorings into specific examples of eliminating \emph{pipeline} parallel (described in Section~\ref{sec:removepipeline}), and removing \emph{farm} parallelism (described in Section~\ref{sec:removefarm}).
 These restoration refactorings on both farm and pipelines are categorised by i) \emph{eliminating} the existing pthread concurrency by removing the calls to pthread functions, to they can be later replaced with calls to structured high-level algorithmic skeletons (described in Section~\ref{sec:removepthread}), ii) \emph{repairing} the eliminated versions of the code, which may have some bugs introduced by removing the underlying concurrency logic, and iii) \emph{shaping} the code, into order to structure it in a way that parallel patterns can be easily introduced. 
 We explain each of these refactorings one by one in the following subsections.
 
@@ -431,8 +431,6 @@ where \lstinline|0| is again the value returned by \lstinline|pthread_join| when
 %  \end{itemize}
 %\end{itemize}
 
-\subsection{Farm Parallelism Removal} \label{sec:removefarm}
-
 \subsection{Pipeline Parallelism Removal} \label{sec:removepipeline}
 
 \begin{lstlisting}[frame=single,numbers=left,label=lst:simplepipeexample,caption={Simple pipeline example, based on PGPry, from the Parsec benchmark suite.}]
@@ -478,8 +476,8 @@ void *StageTwo(void *threadarg2) {
 %\paragraph]{Very Simple Example.}
 
 %Simplified PGPry example (Listing~\ref{lst:simplepipeexample}). A two-stage pipeline with farms for the stages. An integer represents the (size of a) buffer between stages. Parallelism removal assumes perfect scheduling for the sequential version; practically, we do not see exactly the same behaviour for the sequential version as we do the parallel versions (for all runs of the parallel version).
-
-Instances of the \emph{pipeline} pattern (see Section~\ref{sec:background}) occur frequently in legacy code involving pthreads. Typically, these instances incur two or more stages that interact with each other in an implicit way. For example, through the update of a shared variable between threads. For example, Listing~\ref{lst:simplepipeexample} shows a two-stage pipeline example, where each stage is also a \emph{farm}. This example is a simplified version of the PGPry example, taken from the Parsec Benchmark Suite~\cite{parsec}. In the example, an integer is used to represent the size of a buffer between stages (\lstinline|i1| at Line 6, and \lstinline|i2| at Line 18).
+\noindent
+Instances of the \emph{pipeline} pattern (see Section~\ref{sec:background}) occur frequently in legacy code involving pthreads. Typically, these instances incur two or more stages that interact with each other in an implicit way. For example, through the update of a shared variable between threads. For example, Listing~\ref{lst:simplepipeexample} shows a two-stage pipeline example, where each stage is also a \emph{farm}. This example is a simplified version of the PGPry example, taken from the Parsec Benchmark Suite~\cite{10.1145/1454115.1454128}. In the example, an integer is used to represent the size of a buffer between stages (\lstinline|i1| at Line 6, and \lstinline|i2| at Line 18).
 These stages are:
 
 \textbf{Stage 1} removes the direct calls to the pthread API, (as described in Section~\ref{sec:removepthread}). For example, this includes in \lstinline|main|, replacing \lstinline|pthread_create| calls with an assignment to \lstinline|status| and a call to the spawned function. This ensures that \lstinline|status| is initialised for the subsequent uses of it; and that values assigned should be the default successful returned value of \lstinline|pthread_create|.
@@ -491,7 +489,7 @@ if (status != 0) {
   exit(-1);
 }
 \end{lstlisting}
-
+\noindent
 This stage also considers the \lstinline|pthread_join| calls in \lstinline|main|. Since these do not expect return values (i.e.\ their second argument is \lstinline|NULL|), so they can just be removed.
 The final refactoring in this stage is to replace the \lstinline|pthread_exit| calls with \lstinline|return NULL;|
 
@@ -509,7 +507,7 @@ int i1;
 int i2;
 for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {...}
 \end{lstlisting}
-
+\noindent
 Typically, the original stages of the pipeline will contain loops; these will be unified together by forming the disjunction of the conditionals from all the loops.
  This process is done by unifying from the first stage, then the second stage, and so on. There may be duplicated portions of the code as a result of the stage. This duplicate code can be filtered out by using common \emph{clone detection} techniques, commonly found in the literature, such as [BLAH]. Any code that occurs before any \emph{read} or \emph{write} operations on any shared data can simply be inserted into the unified stage. 
  
@@ -522,7 +520,7 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
   ...
 }
 \end{lstlisting}
-
+\noindent
 \textbf{Stage 3} attempts to match the \emph{reads} and \emph{writes} to the shared state that occurs in the various original stages of the pipelines. These need to be unified in such a way that order of execution is preserved in the unified stage. Operations on the state can be matched accordingly. Match \emph{read} operations on the shared state with other \emph{read} and \emph{write} operations on the shared state. In the example, a \emph{read} is matched with a \emph{read}, resulting in picking the \emph{read} operation in the first stage; here, the assignment to \lstinline|loc_shared|, occurring in \lstinline|StageOne| and \lstinline|StageTwo| (Lines 8 and 20) of Listing~\ref{lst:simplepipeexample} can be merged together to form a single assignment statement (as illustrated at Line 4 in the listing below).
 \begin{lstlisting}[frame=single]
 int i1;
@@ -533,6 +531,7 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
 }
 \end{lstlisting}
 
+\noindent
 A \emph{write} operation (see Section~\ref{sec:readwrite}) in the first stage is matched with another \emph{write} operation in the second (and subsequent) stages. In Listing~\ref{lst:simplepipeexample}, we see a \emph{write} to the shared variable \lstinline|loc_shared| on Line 12, in \lstinline|StageOne| and also on Line 24, in \lstinline|StageTwo|. Here, we execute the \emph{write} instruction \lstinline|loc_shared++| from \lstinline|StageOne| first, and then we execute the \emph{write} instruction, \lstinline|loc_shared--|, from \lstinline|StageTwo|. Indeed, in this example, there is an interesting observation that these two operations will functionally cancel each other out, as incrementing a variable, and then immediately decrementing it, is obviously a \emph{cancelling} behaviour; however, reasoning about the behaviour of the operations outside of a basic \emph{read/write} behaviour is beyond the scope of this paper.
 
   \begin{lstlisting}[frame=single]
@@ -549,7 +548,7 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
 }
 \end{lstlisting}
 
-
+\noindent
 \textbf{Stage 4} replaces the original code in the \lstinline{main} function (Lines 29 -- 36 of Listing~\ref{lst:simplepipeexample}) with a call to the new unified function (here renamed to something more meaningful).
 
   \begin{lstlisting}[frame=single]
@@ -560,8 +559,8 @@ int main () {
 }
 \end{lstlisting}
 
-
-\textbf{Stage 5} the parallelisation of the sequentialised version of the code can now be performed. Here, we now take the introduced function, and derive \emph{pipeline} stages from it, so that a patterned version can be introduced, using a framework like OpenMP [REF], Intel's Threading Building Blocks [REF], or GrPPI [REF]. Here, any free variables in the refactored functions/pipeline stages need to be captured. Therefore a \lstinline|struct| is declared at Lines 1 and 13, representing the return types of the pipline stages \lstinline|S1| and \lstinline|S2|. Any global variables that previously were assigned to the results of these stages are now captured; for example at Lines 31 and 35. Note here that \lstinline{S2} takes as a parameter the updated variable \lstinline{shared} at Line 33. 
+\noindent
+\textbf{Stage 5} the parallelisation of the sequentialised version of the code can now be performed. Here, we now take the introduced function, and derive \emph{pipeline} stages from it, so that a patterned version can be introduced, using a framework like OpenMP~\cite{10.1109/99.660313}, Intel's Threading Building Blocks~\cite{DBLP:reference/parallel/X11pz}, or GrPPI~\cite{DBLP:journals/concurrency/AstorgaD0G17}. Here, any free variables in the refactored functions/pipeline stages need to be captured. Therefore a \lstinline|struct| is declared at Lines 1 and 13, representing the return types of the pipline stages \lstinline|S1| and \lstinline|S2|. Any global variables that previously were assigned to the results of these stages are now captured; for example at Lines 31 and 35. Note here that \lstinline{S2} takes as a parameter the updated variable \lstinline{shared} at Line 33. 
 
 \begin{lstlisting}[frame=single]
 int main() {
@@ -572,7 +571,7 @@ shared = pipe_result.shared;
 }
 \end{lstlisting}
 The \lstinline|struct| can be automatically generated itself, where the fields are all free variables (i.e.\ the globals) in the synthesised function.
-
+%
 We finally parallelise the refactored code using a clean pattern method of parallelisation, such as GrPPI.
 
 \begin{lstlisting}[frame=single]
@@ -895,7 +894,100 @@ for (i1 = 0, i2 = 0; i1 < 5 || i2 < 5; i1++, i2++) {
 %%  \end{itemize}
 %%\end{enumerate}
 
-\section{Implementation}
+\subsection{Farm Parallelism Removal} \label{sec:removefarm}
+
+Instances of Farm patterns are less subtle that their pipeline counterparts and occur very frequently in pthread legacy applications. Typically they comprise of explicitly setting up a number of worker threads, with possible explicit task queues belonging to each thread, or a single task queue shared amongst all threads that is mutexed. 
+
+\begin{lstlisting}[frame=single,numbers=left,label=lst:simplefarmexample,caption={Simple farm example, based on Matrix Multiplication}]
+static void * thread_func (void* arg) {
+input_data *input = (input_data *)arg;
+for (unsigned int i = input->row_start; i < input->row_end; i++) {
+multiply_row_by_matrix(a, i, b, res);
+}
+return (void *)0;
+}
+
+void threads_create() {
+pthread_attr_t attr;
+int status;
+...
+status = pthread_attr_init(&attr);
+... 
+int chunk = chunk_size + extra;
+in[thread_ind].row_start = count;
+in[thread_ind].row_end = count + chunk;
+count += chunk;
+
+for (unsigned int thread_ind = 0; thread_ind < thread_count; thread_ind++) {
+...
+pthread_create(&threads[thread_ind], &attr, &thread_func, &in[thread_ind]);
+}
+}
+
+int main (int argc, char *argv[]) {
+...
+threads_create();
+
+for (int i=0; i<thread_count; i++)
+pthread_join (threads[i], NULL);
+
+pthread_exit ( NULL );        /* Let threads finish */
+}
+\end{lstlisting}
+
+\noindent
+In Listing~\ref{lst:simplefarmexample} we illustrate an example of a farm using pthreads, taken from an application of \emph{matri multiplication}. In the example, at Line 22, \lstinline{thread_count} instances of pthreads are instantiated. Each of these threads will execute the function \lstinline{thread_func} defined at Line 1.  
+
+\begin{lstlisting}[frame=single,numbers=left,label=lst:simplefarmremove,caption={Simple farm example, based on Matrix Multiplication, with pthreads eliminated.}]
+static void * thread_func (void* arg) {
+input_data *input = (input_data *)arg;
+for (unsigned int i = input->row_start; i < input->row_end; i++) {
+multiply_row_by_matrix(a, i, b, res);
+}
+return (void *)0;
+}
+
+void threads_create() {
+int status;
+...
+status = pthread_attr_init(&attr);
+... 
+int chunk = chunk_size + extra;
+in[thread_ind].row_start = count;
+in[thread_ind].row_end = count + chunk;
+count += chunk;
+
+for (unsigned int thread_ind = 0; thread_ind < thread_count; thread_ind++) {
+...
+thread_func(&in[thread_ind]);
+}
+}
+
+int main (int argc, char *argv[]) {
+...
+threads_create();
+}
+\end{lstlisting}
+
+\noindent
+\textbf{Stage 1} removes the direct calls to the pthread API, (as described in Section~\ref{sec:removepthread}). The result of this transformation is shown in Listing~\ref{lst:simplefarmremove}. In this stage, calls to \lstinline{pthread_create} have been replaced entirely with a simple call to the function, \lstinline{thread_func}, at Line 21. The \lstinline{main} has also been transformed, removing calls to \lstinline{pthread_join} at Line 31 and \lstinline{pthread_exit} (from Listing~\ref{lst:simplefarmexample}), leaving just the single call to \lstinline{thread_create}. It is worth noting that \lstinline{threads_create} can be renamed using a \emph{renaming} refactoring~\cite{opdyke} to something more meaningful. 
+
+\begin{lstlisting}[frame=single,numbers=left,label=lst:simplefarmtbb,caption={Simple farm example, based on Matrix Multiplication, with tbb added.}]
+...
+void threads_create() {
+int status;
+...
+tbb::parallel_for(blocked_range<size_t>(0,thread_count), MultiplyRowsMatrixTBB(a, b, res, chunk_size, extra_pool));
+}
+
+int main (int argc, char *argv[]) {
+...
+threads_create();
+}
+\end{lstlisting}
+
+\noindent
+\textbf{Stage 2} in the final stage for this refactoring, we replace the call to \lstinline{thread_func} with a call to Intel's Threading Building Block's \lstinline{parallel_for} construct, at Line 5 of Listing~\ref{lst:simplefarmtbb}.
 
 \section{Evaluation}
 \subsection{Evaluation Setup}
