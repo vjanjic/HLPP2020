@@ -172,119 +172,165 @@ Software Restoration methodology consists of a number of steps, each applying a 
 
 %\begin{figure}
 \begin{lstlisting}[caption=Original Simple Pipeline Code,frame=single,label=lst:simplePipe]
-int main(int argc, char *argv[]) {
-  ...
-  /* initialize mutex and condition variable */
-  pthread_mutex_init(&barrier, NULL);
-  pthread_cond_init(&go, NULL);
-  ...
-  /* create the workers, then wait for them to finish */
-  for (i = 0; i < numWorkers; i++)
-    pthread_create(&workerid[i], &attr, Worker, (void *) i);
-  for (i = 0; i < numWorkers; i++)
+  int main(int argc, char *argv[]) {
+  ...  
+    /* create the workers, then wait for them to finish */
+    pthread_create(&workerid[0], &attr, Stage1, (void *)&stage_queues[0]);
+    pthread_create(&workerid[1], &attr, Stage2, (void *)&stage_queues[1]);
+    pthread_create(&workerid[2], &attr, Stage3, (void *)&stage_queues[2]);
+    
+    for (i = 0; i < NRSTAGES; i++)
     pthread_join(workerid[i], NULL);
-  ...
-}
+    
+    ...
+  }
 
-void *Worker(void *arg) {
-  long myid = (long) arg;
-  int i;
-  int mystate = myid;
-  // tick over while the first item "reaches" me
-  for (i=0; i<myid; i++) {
-    Barrier();
+  /* Second stage reads an element from the input queue, adds 1 to it and writes it to the output queue */
+  void *Stage2(void *arg) {
+    int my_input;
+    int my_output;
+    
+    pipeline_stage_queues_t *myQueues = (pipeline_stage_queues_t *)arg;
+    queue_t *myOutputQueue = myQueues->outputQueue;
+    queue_t *myInputQueue = myQueues->inputQueue;
+    
+    do {
+      my_input = read_from_queue(myInputQueue);
+      if (my_input > 0)
+      my_output = my_input + 1;
+      else /* 0 is a terminating token...If we get it, we just pass it on... */
+      my_output = 0;
+      add_to_queue(myOutputQueue, my_output);
+    } while (my_input>0);
+    
+    return NULL;
   }
-  // process items one by one
-  for (i=0; i<dataSize; i++) {
-    mystate += data[i]+1;       // I am stateful
-    data[i] = data[i]+mystate;  // mystate affects output
-    Barrier();
+
+  void add_to_queue(queue_t *queue, int elem)
+  {
+    pthread_mutex_lock(&queue->queue_lock);
+    /* If the queue is full, wait until something reads from it before adding a new element */
+    if (queue->nr_elements == queue->capacity) {
+      pthread_cond_wait(&queue->queue_cond_read,&queue->queue_lock);
+    }
+    queue->elements[queue->addTo] = elem;
+    queue->addTo = (queue->addTo + 1) % queue->capacity;
+    queue->nr_elements++;
+    pthread_cond_signal(&queue->queue_cond_write);
+    pthread_mutex_unlock(&queue->queue_lock);
   }
-  // tick over while the pipeline drains
-  for (i=0; i<numWorkers-myid-1; i++) {
-    Barrier();
-  }
-}
+
 \end{lstlisting}
 
 \noindent
-In the lines 8--9, a number of worker threads (one per stage of a pipeline) is created, each of them executing \lstinline{Worker} function. In the lines 10--11, the main function waits for completion of all pipeline stages. \lstinline{Worker} function iteratively processes the data items from the \lstinline{data} array. This is done in super-steps, which are synchronised using the \lstinline{Barrier} function. In lines 20-22, the $n$-th stage idles for the first $n-1$ super-steps, simulating the waiting for the pipeline queues to have items available for processing. The loop in lines 24--28 is the actual work that the pipeline stage performs. Each stage $n$ is stateful (represented by \lstinline{mystate} variable) and, starting from the $n$-th super-step, each stage processes all the item in the \lstinline{data} array. The stage state is first updated (line 25) and then the item $i$ of the array is updated (line 26). Each iteration of the loop is one step of the whole computation and the barrier at the end of the loop (line 27) signalises the end of the step. Note that in each super-steap, each of the threads operates on different item in the \lstinline{data} array, so there is no need for locking of this array. Finally, the loop in the lines 30--32 waits for the pipeline to drain. 
+The above listing shows a snipet of the code. In the main function (lines 1--12), a pipeline of three stages is created using three threads. The stages are connected by queues, so that each stage (apart from the first one) has its input and output queue. After the thread creation, the main function just waits for the threads to finish their work (lines 8--9). In the lines 15--33, we show the function for the middle stage of the pipeline. This function simply reads an element from the input queue (an integer number), adds 1 to it and then puts it into the output queue. All the synchronisation code is in the \lstinline{add_to_queue} and \lstinline{remove_from_queue} functions. We show just the \lstinline{add_to_queue} function (lines 35--47), as \lstinline{remove_from_queue} is quite similar. That function uses one lock and two conditional variables for the queue. The conditional variables are used for synchronisation when threads are waiting for reading from an empty queue (at the start of the program) or for writing into a full queue. When a thread needs to add to the queue, it first grabs the queue lock, then checks if the queue capacity is reached, in which case writing a new element is impossible. In this case, the thread releases a lock and waits for a signal that some other thread has consumed an element of this queue (\lstinline{queue->queue_cond_read} conditional variable at line 40). After this conditional variable is signalled, there is space to write a new element into the queue, so the thread writes it and updates the queue counter (lines 42--44). Finally, the thread signals that a write into the queue has occured (\lstinline{queue->queue_cond_write} conditional variable in line 45) and releases the queue lock (line 46) before returning.
 
 \paragraph{Parallelism Removal.}
-The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pthreads code and discovers part of it that correspond to instances of parallel patterns. In our example, this stage identifies the pipeline created in lines 8--9, with \lstinline{Worker} being the worker function for each stage. After that, the first code transformation step is applied, where we remove parts of the threaded code that are safe to remove and replace them with their sequential equivalents. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. For our example, this results in a sequential code given in Listing~\ref{lst:pipeParRem}.
+The initial code analysis step (\emph{Initial Pattern Discovery}) analyses the original pthreads code and discovers part of it that correspond to instances of parallel patterns. In our example, this stage identifies the pipeline created in lines 4--6, with the pipeline stages being functions \lstinline{Stage1}, \lstinline{Stage2} and \lstinline{Stage3}. After that, the first code transformation step is applied, where we remove the threaded code replace it with the sequential equivalent. This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on. In our example, this would impact the \lstinline{main} and \lstinline{add_to_queue} functions, which would become as in the Listing~\ref{lst:pipeParRem}.
 
 \begin{lstlisting}[caption=Simple Pipeline Code with Parallelism Removed, frame=single, label=lst:pipeParRem]
-int main(int argc, char *argv[]) {
-  ...
-  /* pthread_mutex and pthread_cond calls removed */
-  ...
-  /* create the workers, then wait for them to finish */
-  for (i = 0; i < numWorkers; i++)
-    Worker(i); /* pthread_create replaced with the call to the underlying function */
-  /* pthread_join calls removed */
-    
-}
+  int main(int argc, char *argv[]) {
+  ...  
+    /* create the workers, then wait for them to finish */
+    Stage1((void *)&stage_queues[0]);
+    Stage2((void *)&stage_queues[1]);
+    Stage3((void *)&stage_queues[2]);
 
-void *Worker(void *arg) {
-  long myid = (long) arg;
-  int i;
-  int mystate = myid;
-  // tick over while the first item "reaches" me
-  for (i=0; i<myid; i++) {
-    SeqBarrier();
+    /* pthread_join would be removed
+    for (i = 0; i < NRSTAGES; i++)
+      pthread_join(workerid[i], NULL);
+    */
+      
+    ...
   }
-  // process items one by one
-  for (i=0; i<dataSize; i++) {
-    mystate += data[i]+1;       // I am stateful
-    data[i] = data[i]+mystate;  // mystate affects output
-    SeqBarrier();
+
+   void add_to_queue(queue_t *queue, int elem)
+  {
+    /* All of the locks and conditional variables would be removed */
+
+    queue->elements[queue->addTo] = elem;
+    queue->addTo = (queue->addTo + 1) % queue->capacity;
+    queue->nr_elements++;
+
   }
-  // tick over while the pipeline drains
-  for (i=0; i<numWorkers-myid-1; i++) {
-    SeqBarrier();
-  }
-}
 \end{lstlisting}
 
 \noindent
-Note that all the \lstinline{pthread_} calls from the Listing~\ref{lst:simplePipe} have either been removed or replaced with the calls to the underlying functions (in the case of \lstinline{pthread_create}). Note also that the parallel barrier (\lstinline{Barrier}) is replaced with a sequential one (\lstinline{SeqBarrier}). In reality, we would just change the \lstinline{Barrier} function by eliminating the \lstinline{pthread_} constructs from it and retain the same function name for it, but the function name here is changed for clarity reasons. The two versions of the barrier function are given in Figure~\ref{fig:barriers}. In this way, we have obtained the sequential code.
-
-\begin{figure}[ht]
-  \begin{subfigure}{.45\textwidth}
-    \begin{lstlisting}[caption=Parallel Barrier]
-      void Barrier() {
-        pthread_mutex_lock(&barrier);
-        numArrived++;
-        if (numArrived == numWorkers) {
-          numArrived = 0;
-          pthread_cond_broadcast(&go);
-        } else
-        pthread_cond_wait(&go, &barrier);
-        pthread_mutex_unlock(&barrier);
-      }
-    \end{lstlisting}
-  \end{subfigure}
-
-    \begin{subfigure}{.45\textwidth}
-    \begin{lstlisting}[caption=Sequential Barrier]
-      void SeqBarrier() {
-        numArrived++;
-        if (numArrived == numWorkers) {
-          numArrived = 0;
-        } 
-      }
-    \end{lstlisting}
-  \end{subfigure}
-
-\end{figure}
-
+Note that all the \lstinline{pthread_} calls from the Listing~\ref{lst:simplePipe} have either been removed or replaced with the calls to the underlying functions (in the case of \lstinline{pthread_create}). Note, however that the code obtained in this
+way would not work. In particular, \lstinline{Stage1} function would be executed, which would just write all its outputs into its output queue (in a circular way), therefore overwriting the data possibly multiple times. After \lstinline{Stage1} finishes,
+\lstinline{Stage2} would start, read all the elements currently in its input queue (which would be just a subset of all the data produced by \lstinline{Stage1}) and write them to the output queue. It is clear that in this way there would be loss of data, so the output that the final stage produces would not be the same as in the parallel version.
 
 \paragraph{Code Repair.}
-The parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. This can be, for example, due to removal of the threaded code in a parallel pipeline, which can result the obtained sequential code to be stuck forever in the first stage of the pipeline, depending on how the synchronisation between stages is implemented. Or, alternatively, if there are explicit queues between pipeline stages, the first stage running could just write data into its output buffer which would, because the data from it is not consumed by the second stage immediately, become overflowed, therefore breaking the code. The next step in Software Restoration is, therefore, to repair the potentially broken code that is the output of the previous step. Note that in our example there is no need for this, because the sequential code obtained after parallelism removal can be compiled and run (even though it does more work than necessary, since sequential barriers are still present in it.
+As we observed in the previous step, the parallelism removal step might result in a code that is broken and, hence, is not semantically equivalent to the original legacy-parallel code. Our example is just one of many instances in which merely removing the \lstinline{pthread} constructs actually breaks the code. The next step in Software Restoration is, therefore, to repair the potentially broken code that is the output of the previous step. In our pipeline example, this is actually the most complicated step of the whole methodology and the resulting code is given in Listing~\ref{lst:pipeRepaired}.
 
-\paragraph{De-optimisation.}
-After the code repair step, the resulting code will be working sequential C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible.
+\begin{lstlisting}[caption=Simple Pipeline Code after Code Repair, frame=single, label=lst:pipeRepaired]
 
+  int main(int argc, char *argv[]) {
+  ...  
+
+    while (output_stage_1>0) {
+      output_stage_1 = Stage1((void *)&stage_queues[0]);
+      Stage2((void *)&stage_queues[1]);
+      Stage3((void *)&stage_queues[2]);
+    }
+      
+  ...
+  }
+
+  /* Second stage reads an element from the input queue, adds 1 to it and writes it to the output queue */
+  void *Stage2(void *arg) {
+    int my_input;
+    int my_output;
+    
+    pipeline_stage_queues_t *myQueues = (pipeline_stage_queues_t *)arg;
+    queue_t *myOutputQueue = myQueues->outputQueue;
+    queue_t *myInputQueue = myQueues->inputQueue;
+    
+    my_input = read_from_queue(myInputQueue);
+    if (my_input > 0)
+    my_output = my_input + 1;
+    else /* 0 is a terminating token...If we get it, we just pass it on... */
+    my_output = 0;
+    add_to_queue(myOutputQueue, my_output);
+    
+    return my_input;
+  }
+\end{lstlisting}
+
+\noindent 
+In the listing, we show the \lstinline{main} and \lstinline{Stage2} function. Note that in the main function, the three stages of the pipeline are interleaved in the while loop (lines 4--9). The \lstinline{Stage2} function is transformed so that it performs just one iteration, with the loop in the function being eliminated. The terminating condition has been lifted from the
+\lstinline{Stage1} function into the newly introduced loop at line 4. Therefore, in the newly introduced loop, \lstinline{Stage1} generates one element and puts it into its output queue, \lstinline{Stage2} consumes the element from this output queue, processes it and puts its output in its own output queue and then \lstinline{Stage3} consumes the element from this queue, processes it and puts its output into the final queue. This is repeated until \lstinline{Stage1} generates the terminating element (\lstinline{0} in this case).
+
+\paragraph{Program Shaping.}
+After the code repair step, the resulting code will be working sequential C/C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. In our example, these are the queues between stages of the pipeline computation, but in other examples it can also be custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible. For our example, the resulting code (\lstinline{main} and \lstinline{Stage2} functions) are given in Listing~\ref{lst:pipeClean}.
+
+\begin{lstlisting}[caption=Clean Sequential Simple Pipeline Code, frame=single, label=lst:pipeClean]
+
+  int main(int argc, char *argv[]) {
+  ...  
+
+    while (output_stage_1>0) {
+      int output_stage_1 = Stage1();
+      int output_stage_2=Stage2(output_stage_1);
+      int output_stage_3=Stage3(output_stage_3);
+      printf(``%d\n'', output_stage_3
+    }
+      
+  ...
+  }
+
+  /* Second stage reads an element from the input queue, adds 1 to it and writes it to the output queue */
+  int Stage2(int input) {
+    int my_output;
+    
+    if (input>0)
+      my_output = input + 1;
+    else /* 0 is a terminating token...If we get it, we just pass it on... */
+      my_output = input;
+    
+    return my_output;
+  }
+\end{lstlisting}
 
 %\item \emph{Feature Cleanup.}  After the application of parallelism removal transformations, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts do not prevent the sequential version of application from running, but are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate these artifacts and restore the code in the state as close to the original sequential code from which legacy parallelisation was derived as is possible. This is, again, done using refactorings. As we are focusing on the \emph{farm} and \emph{pipeline} parallelism, the transformations we do is removing the queues of the pipeline stages (for the \emph{pipeline} parallelism) and flattening of data structures (in the case of \emph{farm} parallelism). The Matrix Multiplication code after feature cleanup is given below
 
