@@ -180,13 +180,13 @@ void print_array() {
 }
 
 
-inline void swap(int i, int j) {
+ void swap(int i, int j) {
   register int tmp;
   tmp = A[i]; A[i] = A[j]; A[j] = tmp;
 }
 
 /* Return the largest of first two keys. */
-inline int FindPivot(int i, int j) {
+ int FindPivot(int i, int j) {
     register int pivot = (i+(j-i))/2;
     if (A[i]>A[pivot]) {
 	if (A[i]>A[j]) return i;
@@ -199,7 +199,7 @@ inline int FindPivot(int i, int j) {
 
 
 /* Partition the array between elements i and j around the specified pivot. */
-inline int Partition(int i, int j, unsigned int pivot) {
+ int Partition(int i, int j, unsigned int pivot) {
     int left = i;
     int right = j;
     
@@ -213,7 +213,7 @@ inline int Partition(int i, int j, unsigned int pivot) {
 }
 
 
-inline void QuickSort(int i, int j) {
+ void QuickSort(int i, int j) {
     if (j-i <= 1) {
 	if (A[i]>A[j]) swap(i,j);
 	return;
@@ -314,7 +314,7 @@ void stage2()
 {
     // fprintf(stderr, "stage2 fired\n");
     int streamlen = 0;
-    streamlen = worker(streamlen, t);
+    // streamlen = worker(streamlen, t);
     task_t* t;
     task_t* r;
     while(1)
@@ -436,17 +436,17 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "Total time, %f\n", end_time - start_time);
 
-    // fprintf(stderr, "got result\n");
+   fprintf(stderr, "got result\n");
     unsigned int i;
     
-    //    if (1) {
-    //    for(i=0;i<size;i++) 
-    //        if (A[i]!=i) {
-   //             error("wrong result\n");
-   //             return -1;
-   //         }
-   //     printf("Ok\n");
-  //  }
+        if (1) {
+        for(i=0;i<size;i++) 
+            if (A[i]!=i) {
+                fprintf(stderr, "wrong result\n");
+                return -1;
+            }
+        printf("Ok\n");
+    }
 
     
     
