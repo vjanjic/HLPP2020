@@ -24,7 +24,7 @@
 %}
 
 \lstset{language=C++,
- basicstyle=\ttfamily\scriptsize, %aboveskip={-5ex},
+ basicstyle=\ttfamily\lst@ifdisplaystyle\scriptsize\fi,%\scriptsize, %aboveskip={-5ex},
  columns=fullflexible,
 %basicstyle={\ttfamily\singlespacing},aboveskip={-4ex},
  keywordstyle=\color{blue}\ttfamily,
@@ -73,7 +73,7 @@
 
 
 \begin{document}
-\title{Restoration of Legacy Parallelism}
+\title{Restoration of Legacy Parallelism in C and C++ Applications}
 %
 %\titlerunning{Abbreviated paper title}
 % If the paper title is too long for the running head, you can set
@@ -102,7 +102,7 @@
 \maketitle
 %
 \begin{abstract}
-    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive and portable whilst also achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} that was developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is tedious and error-prone, due to typical concurrency and pthreading code being closing intertwined through the business logic of the program. In this paper, we present the first step towards semi-automatic rewriting of the legacy-parallel code into the pattern-based structured code. We describe refactorings that \emph{restore} pthreaded C programs to their equivalent sequential well-structured form, removing the ad-hoc parallelism from the code, effectively \emph{sequentialising} the code behaviour and resetting its structure. We demonstrate our restoration technique on a number of benchmarks so that we are able to eliminate ad-hoc parallelism from the code based on \emph{pthreads}, allowing us to introduce patterned parallelism in the resulting code.
+    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive and portable whilst also achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} that was developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is tedious and error-prone, due to typical concurrency and pthreading code being closely intertwined throughout the business logic of the program. In this paper, we present a new software restoration methodology, to transform legacy-parallel programs implemented using e.g. \emph{pthreads} into their structured patterned equivalent. We demonstrate our restoration technique on a number of benchmarks, allowing us to introduce patterned parallelism in the resulting code; we record improvements in cyclomatic complexity and speedups.
 
 \keywords{Parallel patterns, restoration, pthreads, refactoring, code analysis}
 \end{abstract}
