@@ -1,4 +1,4 @@
-%\section{To-Do List}
+`%\section{To-Do List}
 %
 %\begin{itemize}
 %\item General: Rewrite the paper to focus less on methodology and more on transformations and refactoring
@@ -1647,132 +1647,222 @@ blurring, smoothing and edge detection. We consider an instance of the image con
 \end{equation}
 
 \begin{lstlisting}[label=convo1, caption={Original Convolution with PThreads}, frame=single]
-T puttask(T tq, T v) {
-	int a, r;
-	do {
-		my_lock_t_task_t(tq);
-		if (tq->addat == tq->removeat-1) 
-			my_unlock_t_task_t(tq);
-	} while (tq->addat == tq->removeat-1);
-
-	...
-	my_unlock_t_task_t(tq);
-	...
+void puttask(queue_t *queue, task_t elem)
+{
+  pthread_mutex_lock(&queue->queue_lock);
+  /* If the queue is full, wait until something reads from it before adding a new element */
+  if (queue->nr_elements == queue->capacity) {
+    pthread_cond_wait(&queue->queue_cond_read,&queue->queue_lock);
+  }
+  queue->elements[queue->addTo] = elem;
+  queue->addTo = (queue->addTo + 1) % queue->capacity;
+  queue->nr_elements++;
+  pthread_cond_signal(&queue->queue_cond_write);
+  pthread_mutex_unlock(&queue->queue_lock);
+}
+  
+task_t gettask(queue_t *queue)
+{
+  ...
 }
 
-T gettask(T *tq) {
-	char* t;
-	do {
-		my_lock_char(tq);
-		if (tq->removeat == tq->addat) {
-			my_unlock_char(tq);
-			...
-		}
-	}  while (tq->removeat == tq->addat);
-    ...
-	my_unlock_char(tq);
-	...
-	return(t);
-}
-
-void stage1() {
-	..
-	while(1) {
+void* stage1() {
+  ..
+  while(1) {
 		t = gettask(tq1);
 		r = workerStage1(t);
 		puttask(tq2, r);
-	}
+  }
+  return NULL;
 }
 
-void stage2() {
-	..
-	while(1) {
+void* stage2() {
+  ..
+  while(1) {
 		t = gettask(tq2);
 		r = workerStage2(t);
 		puttask(tq3, r);
-	}
+  }
+  return NULL;
 }
 
-void createpipefarm(void (*Worker1)(), void (*Worker2)(), int n1, int n2) {
-	for (long i=0; i< n1; i++) 
-		pthread_create(pt, NULL, (void *(*)(void *))Worker1, (void *)t);
+int main (int argc, char **argv)
+{
+  int nw1 = atoi(argv[1]), nw2 = atoi(argv[2]);
+  pthread_t workers1[nw1], workers2[nw2];
+  queue_t tq1, tq2;
+  ... 
+  /* Reading in the images in the task queue tq1 */
+  ...
+  /* Create the pipeline */
+  for (int i=0; i<nw1; i++)
+    pthread_create(&workers1[i], NULL, stage1, NULL);
+  for (int i=0; i<nw2; i++)
+    pthread_create(&workers2[i], NULL, stage2, NULL);
 
-	for (long i=0; i<n2; i++)
-		pthread_create(pt, NULL, (void *(*)(void *))Worker2, (void *)t);
+  . . .
+  /* Wait for threads to finish execution and output results to files */    
+
 }
-...
-for (int i=0; i<NIMGS; i++) {
-	images[i] = (char *) malloc (sizeof(char)*1000);
-	copyImage(images[i]);
-	puttask(tq1, images[i]);
-}
-createpipefarm(stage1, stage2, nworkers1, nworkers2);
-for (int i=0; i<NIMGS; i++) {
-	gettask(tq3);
-}
+
 \end{lstlisting}
 
-For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. The example first sets up a queue of input tasks, at Lines 67-71, placing images onto a task queue, \lstinline{tq1}; \lstinline{createpipefarm} is then called, which is defined on Line 59, setting up the various threads for the workers that will be come the pipeline stages; finally, Lines 74-76 show the results from the pipeline being retrieved from an output queue, \lstinline{tq3}. The pipeline stages are shown at Line 36 and 45, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's respecting input queue (\lstinline{tq1} for \lstinline{stage1}, and \lstinline{tq2} for \lstinline{stage2}), computes the unit of work on the task item (Lines 40 and 49) and then places the result on an output queue (Lines 41 and 50). Each \lstinline{puttask} and \lstinline{gettask} function (here simplified over an abstract type \lstinline{T} for brevity) uses pthread locking and unlocking mechanisms for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. 
+%\begin{lstlisting}[label=convo1, caption={Original Convolution with PThreads}, frame=single]
+%T puttask(T tq, T v) {
+%	int a, r;
+%	do {
+%		my_lock_t_task_t(tq);
+%		if (tq->addat == tq->removeat-1) 
+%			my_unlock_t_task_t(tq);
+%	} while (tq->addat == tq->removeat-1);
+%
+%	...
+%	my_unlock_t_task_t(tq);
+%	...
+%}
+
+%T gettask(T *tq) {
+%	char* t;
+%	do {
+%		my_lock_char(tq);
+%		if (tq->removeat == tq->addat) {
+%			my_unlock_char(tq);
+%			...
+%		}
+%	}  while (tq->removeat == tq->addat);
+%   ...
+%	my_unlock_char(tq);
+%	...
+%	return(t);
+%}
+
+%void stage1() {
+%	..
+%	while(1) {
+%		t = gettask(tq1);
+%		r = workerStage1(t);
+%		puttask(tq2, r);
+%	}
+%}
+
+%void stage2() {
+%	..
+%	while(1) {
+%		t = gettask(tq2);
+%		r = workerStage2(t);
+%		puttask(tq3, r);
+%	}
+%}
+
+%void createpipefarm(void (*Worker1)(), void (*Worker2)(), int n1, int n2) {
+%	for (long i=0; i< n1; i++) 
+%		pthread_create(pt, NULL, (void *(*)(void *))Worker1, (void *)t);
+%
+%	for (long i=0; i<n2; i++)
+%		pthread_create(pt, NULL, (void *(*)(void *))Worker2, (void *)t);
+%}
+%...
+%for (int i=0; i<NIMGS; i++) {
+%	images[i] = (char *) malloc (sizeof(char)*1000);
+%	copyImage(images[i]);
+%	puttask(tq1, images[i]);
+%}
+%createpipefarm(stage1, stage2, nworkers1, nworkers2);
+%for (int i=0; i<NIMGS; i++) {
+%	gettask(tq3);
+%}
+%\end{lstlisting}
+
+%For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. The example first sets up a queue of input tasks, at Lines 67-71, placing images onto a task queue, \lstinline{tq1}; \lstinline{createpipefarm} is then called, which is defined on Line 59, setting up the various threads for the workers that will be come the pipeline stages; finally, Lines 74-76 show the results from the pipeline being retrieved from an output queue, \lstinline{tq3}. The pipeline stages are shown at Line 36 and 45, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's respecting input queue (\lstinline{tq1} for \lstinline{stage1}, and \lstinline{tq2} for \lstinline{stage2}), computes the unit of work on the task item (Lines 40 and 49) and then places the result on an output queue (Lines 41 and 50). Each \lstinline{puttask} and \lstinline{gettask} function (here simplified over an abstract type \lstinline{T} for brevity) uses pthread locking and unlocking mechanisms for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. 
+
+For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a sequence of images from the disk), the example creates the pipeline in lines 49--52, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at lines 20 and 30, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectivelly), computes the unit of work on the task item (lines 24 and 34) and then places the result on an output queue (Lines 25 and 35). Each \lstinline{puttask} and \lstinline{gettask} function uses pthread locking and conditional variables for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. The code for \lstinline{puttask} is shown in lines 1-13.
+
+The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token,\lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue; when a stage pulls this token off the input queue, the stage terminates (Listing~\ref{convo1}). 
 
 \begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token},frame=single]
-if ((int)(task_t)t == EOS) {
-	puttask(tq2, (task_t2 *)EOS);
-	break;
-}
-\end{lstlisting}
+  if ((int)(task_t)t == EOS) {
+    puttask(tq2, (task_t2 *)EOS);
+    break;
+  }
+  \end{lstlisting}
 
-The \emph{first step} to restoration is to first remove the pthreading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token,\lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue; when a stage pulls this token off the input queue, the stage terminates. An example of adding this termination token is shown in Listing~\ref{convo1}.
-
-\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
-do {
-	char old_value ;
-	char new_value = 1 ;
-	lock_char++;        
-	if (tq1->removeat == tq1->addat) {
-		tq1->lock = 0 ;
-		unlock_char++;
-	}
-}  while (tq1->removeat == tq1->addat);
-t1 = tq1->ts[tq1->removeat];
-if (++tq1->removeat == MAX_TASKS)
-	tq1->removeat = 0;
-tq1->lock = 0 ;
-unlock_char++;
-r1 = workerStage1(t1);
-r2 = workerStage2(r1);
-puttask(tq3, r2);
-\end{lstlisting}
+%\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
+%do {
+%	char old_value ;
+%	char new_value = 1 ;
+%	lock_char++;        
+%	if (tq1->removeat == tq1->addat) {
+%		tq1->lock = 0 ;
+%		unlock_char++;
+%	}
+%}  while (tq1->removeat == tq1->addat);
+%t1 = tq1->ts[tq1->removeat];
+%if (++tq1->removeat == MAX_TASKS)
+%	tq1->removeat = 0;
+%tq1->lock = 0 ;
+%unlock_char++;
+%r1 = workerStage1(t1);
+%r2 = workerStage2(r1);
+%puttask(tq3, r2);
+%\end{lstlisting}
 
 The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and out queue). The result is shown in Listing~\ref{convo2}.
 
-\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
-for (int i=0; i<NIMGS; i++) {
-	workerStage3(workerStage2(workerStage1(i)));
-}
+\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
+  /* Unfolded gettask function, reutrning t1 as an input task to stage 1 */
+  . . .
+  r1 = workerStage1(t1);
+  r2 = workerStage2(r1);
+  /* Unfolded puttask function that puts r2 into queue tq2 */
+  tq2->elements[tq2->addTo] = r2;
+  tq2->addTo = (tq2->addTo + 1) % tq2->capacity;
+  tq2->nr_elements ++
 \end{lstlisting}
 
 The final step in the shaping process is to arrive at the code shown in Listing~\ref{convo3}, where we remove the input and output queues completely, and transform the program into a simple function composition; the function composition has been \emph{unfolded} into the original \lstinline{for} loop (Line 67 from Listing~\ref{convo1}), and the loops merged into a single loop. 
 
+%\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
+%for (int i=0; i<NIMGS; i++) {
+%	workerStage3(workerStage2(workerStage1(i)));
+%}
+%\end{lstlisting}
 
-\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
-...
-void RunPipeline(int ntoken, int NIMGS) {
-	tbb::parallel_pipeline(
-		ntoken,
-		tbb::make_filter<void,task_t2*>(
-			tbb::filter::serial, Stage1(NIMGS) )
-		&
-		tbb::make_filter<task_t2*,int>(
-			tbb::filter::parallel, Stage2() )
-		&
-		tbb::make_filter<int,void>(
-			tbb::filter::serial_in_order, Stage3() ));
+\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
+for (int i=0; i<NIMGS; i++) {
+	workerStage2(workerStage1(i));
 }
-...
-RunPipeline(NIMGS, NIMGS);
 \end{lstlisting}
 
 Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised using a structured pattern approach. Here we use TBB, to define a pipeline, using C++ classes, as shown in Listing~\ref{convo4}.
+
+%\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
+%...
+%void RunPipeline(int ntoken, int NIMGS) {
+%	tbb::parallel_pipeline(
+%		ntoken,
+%		tbb::make_filter<void,task_t2*>(
+%			tbb::filter::serial, Stage1(NIMGS) )
+%		&
+%		tbb::make_filter<task_t2*,int>(
+%			tbb::filter::parallel, Stage2() )
+%		&
+%		tbb::make_filter<int,void>(
+%			tbb::filter::serial_in_order, Stage3() ));
+%}
+%...
+%RunPipeline(NIMGS, NIMGS);
+%\end{lstlisting}
+
+\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
+tbb::parallel_pipeline(
+	ntoken,
+	tbb::make_filter<void,task_t2*>(
+		tbb::filter::serial, Stage1(NIMGS) )
+	&
+	tbb::make_filter<task_t2*,int>(
+		tbb::filter::parallel, Stage2() )
+}
+\end{lstlisting}
 
 \begin{table}
 	\begin{tabular}{|c|c|c|}
