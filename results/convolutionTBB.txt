@@ -1,0 +1,41 @@
+[adb23@corryvreckan v2]$ ./convolution 8 14 500
+total_time, 5.24073
+total lock, 0
+total unlock, 0
+lock char, 0
+unlock char, 0
+lock tq, 0
+lock tq, 0
+lock t_task_t, 0
+lock t_task_t, 0
+[adb23@corryvreckan v2]$ ./convolution 8 14 500
+total_time, 5.20951
+total lock, 0
+total unlock, 0
+lock char, 0
+unlock char, 0
+lock tq, 0
+lock tq, 0
+lock t_task_t, 0
+lock t_task_t, 0
+[adb23@corryvreckan v2]$ ./convolution 8 14 500
+total_time, 5.21134
+total lock, 0
+total unlock, 0
+lock char, 0
+unlock char, 0
+lock tq, 0
+lock tq, 0
+lock t_task_t, 0
+lock t_task_t, 0
+[adb23@corryvreckan v2]$ ./convolution 8 14 500
+total_time, 5.18
+total lock, 0
+total unlock, 0
+lock char, 0
+unlock char, 0
+lock tq, 0
+lock tq, 0
+lock t_task_t, 0
+lock t_task_t, 0
+[adb23@corryvreckan v2]$

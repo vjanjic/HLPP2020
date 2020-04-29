@@ -1,0 +1,57 @@
+[adb23@corryvreckan blackscholes]$ time !!
+time make runpth.alt.2
+./pth.alt.2 28 inputs/in_10M.txt out_pth.alt.2.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+waiting
+Num Errors: 0
+
+real    0m39.654s
+user    6m29.946s
+sys     0m1.208s
+[adb23@corryvreckan blackscholes]$ time make runpth.alt.2
+./pth.alt.2 28 inputs/in_10M.txt out_pth.alt.2.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+waiting
+Num Errors: 0
+
+real    0m39.068s
+user    6m23.966s
+sys     0m1.252s
+[adb23@corryvreckan blackscholes]$ time make runpth.alt.2
+./pth.alt.2 28 inputs/in_10M.txt out_pth.alt.2.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+waiting
+Num Errors: 0
+
+real    0m38.673s
+user    6m17.634s
+sys     0m1.183s
+[adb23@corryvreckan blackscholes]$ time make runpth.alt.2
+./pth.alt.2 28 inputs/in_10M.txt out_pth.alt.2.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+waiting
+Num Errors: 0
+
+real    0m38.646s
+user    6m17.525s
+sys     0m1.132s
+[adb23@corryvreckan blackscholes]$ time make runpth.alt.2
+./pth.alt.2 28 inputs/in_10M.txt out_pth.alt.2.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+waiting
+Num Errors: 0
+
+real    0m38.778s
+user    6m20.570s
+sys     0m1.187s
+[adb23@corryvreckan blackscholes]$

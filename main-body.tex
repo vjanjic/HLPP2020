@@ -115,20 +115,20 @@ In this paper, we restrict ourselves to two classical parallel patterns, which w
 The benefits of using parallel patterns lie in clear separation between sequential and parallel parts of the code and high-level description of the underlying parallelism, which makes the patterned applications much easier to maintain, change and adapt to new architectures. 
 %For these reasons, they have been endorsed by most of the top IT companies, who have their own pattern libraries, such as Microsoft PPL~\cite{ppl} and Intel Thread Building Blocks~\cite{tbb}. In addition to that, there are also many popular open-source pattern libraries, such as OpenMP~\cite{openmp} and FastFlow~\cite{openmp}.
 
-\subsection{Reading and Writing} \label{sec:readwrite}
-In Section~\ref{sec:refactoring}, we make use of matching various instances of \emph{read} and \emph{write} operations in the source-code. We use standard language definitions for reading and writing to variables.
-If a variable \lstinline{x} appears on the left-hand-side of an assignment, we class the operation as a \emph{write} (here, the variable, \lstinline{x} is assigned the value of the expression, \lstinline{e}).
-
-\begin{lstlisting}
-x = e;
-\end{lstlisting}
-
-\noindent
-If a variable appears in an expression, or on the right-hand-side of an assignment, we class the operation as a \emph{read}. Here, the contents of variable \lstinline{y} are \emph{read}, and \emph{written} to variable \lstinline{x}.
-
-\begin{lstlisting}
-x = y;
-\end{lstlisting}
+%\subsection{Reading and Writing} \label{sec:readwrite}
+%In Section~\ref{sec:refactoring}, we make use of matching various instances of \emph{read} and \emph{write} operations in the source-code. We use standard language definitions for reading and writing to variables.
+%If a variable \lstinline{x} appears on the left-hand-side of an assignment, we class the operation as a \emph{write} (here, the variable, \lstinline{x} is assigned the value of the expression, \lstinline{e}).
+%
+%\begin{lstlisting}
+%x = e;
+%\end{lstlisting}
+%
+%\noindent
+%If a variable appears in an expression, or on the right-hand-side of an assignment, we class the operation as a \emph{read}. Here, the contents of variable \lstinline{y} are \emph{read}, and \emph{written} to variable \lstinline{x}.
+%
+%\begin{lstlisting}
+%x = y;
+%\end{lstlisting}
 
 %\subsection{Software Refactoring}
 %\noindent
@@ -530,7 +530,7 @@ in the same compound statement can be merged such that the result is a single lo
 
 To illustrate this transformation we use the below code, derived from the synthetic simple pipeline example in Section~\ref{sec:methodology}.
 %
-\begin{lstlisting}[caption=Intermediate Code Repair Stage for Simple Pipeline Example, label=lst:refac:repair:before]
+\begin{lstlisting}[caption=Intermediate Code Repair Stage for Simple Pipeline Example, label=lst:refac:repair:before, frame=single]
 void Pipe(void* a1, void* a2, void* a3) {
   // STAGE ONE
   int my_output_1, i_1 = MAXDATA;
@@ -565,7 +565,7 @@ void Pipe(void* a1, void* a2, void* a3) {
 \noindent
 This represents the example following the Parallelism Elimination stage (Listing~\ref{lst:pipeParRem}), and where the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| have been lifted into the function \lstinline|Pipe| using \emph{extract method} and then \emph{unfolded}. Since the statements in between the above loops consist solely of declarations and assignment statements and can be safely executed prior to the first and second loops, it is possible to merge these loops.
 %
-\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}), label=lst:refac:repair:after]
+\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}), label=lst:refac:repair:after, frame=single]
 void Pipe(void* a1, void* a2, void* a3) {
   int my_output_1, i_1 = MAXDATA;
   ...
@@ -630,7 +630,7 @@ We remove these intermediate queues by inspecting, matching, and transforming \e
 %
 In our recurring example we being this process following the Code Repair stage, and having \emph{unfolded} \lstinline|add_to_queue| and \lstinline|read_to_queue| operations for \emph{intermediate queues only}; note that the output queue operation on Line 39 has not been unfolded.
 %
-\begin{lstlisting}
+\begin{lstlisting}[frame=single]
 void Pipe(void* a1, void* a2, void* a3) {
   int my_output_1, i_1 = MAXDATA;
   
@@ -710,7 +710,7 @@ An unpaired \emph{read} that is part of an \emph{update}, e.g.\ \lstinline|capac
 %
 When applied, the above transformations result in the removal of the two intermediate queues.
 %
-\begin{lstlisting}
+\begin{lstlisting}[frame=single]
 void Pipe(void* a1, void* a2, void* a3) {
   int my_output_1, i_1 = MAXDATA;
   
@@ -753,7 +753,7 @@ This can be done (semi-)automatically.
 %
 A \lstinline|struct| can be synthesised across each of the functions representing stages in the pipeline, with each function transformed to both return and take the synthesised \lstinline|struct| as its argument. In our running pipeline example, following the removal of the intermediate queues, we have three stages represented by the functions \lstinline|S1|, \lstinline|S2|, and \lstinline|S3|, respectively. \lstinline|S1| takes a pointer to an integer and returns an integer value; \lstinline|S2| takes and returns an integer value; and \lstinline|S3| takes an integer value and a pointer to its output queue and returns nothing.
 %
-\begin{lstlisting}
+\begin{lstlisting}[frame=single]
 int S1(int* i_1) {
   int my_output_1;
   if (*i_1 >= 0) {
@@ -785,7 +785,7 @@ void Pipe(void* a1, void* a2, void* a3) {
 \noindent
 Here, we observe that the result of the first two stages are used in the merged loop bounding condition and must therefore be propagated through the stages when converted to composition form. This is achieved by synthesising a new \lstinline|struct|, \lstinline|PipeStruct|, that contains all those variables used in the condition statement, and both the input and output to the pipeline.
 %
-\begin{lstlisting}
+\begin{lstlisting}[frame=single]
 struct PipeStruct {
   // INPUTS
   int* i_1;
@@ -1646,7 +1646,7 @@ blurring, smoothing and edge detection. We consider an instance of the image con
 \textit{out}(i,j)=\sum_{m}\sum_{n} \textit{in}(i-n,j-m)\times \textit{filt}(n,m)
 \end{equation}
 
-\begin{lstlisting}[label=convo1, caption={Original Convolution with PThreads}]
+\begin{lstlisting}[label=convo1, caption={Original Convolution with PThreads}, frame=single]
 T puttask(T tq, T v) {
 	int a, r;
 	do {
@@ -1655,13 +1655,9 @@ T puttask(T tq, T v) {
 			my_unlock_t_task_t(tq);
 	} while (tq->addat == tq->removeat-1);
 
-	tq->ts[tq->addat++] = v;
-	if (tq->addat == MAX_TASKS)
-	tq->addat = 0;
+	...
 	my_unlock_t_task_t(tq);
-	if ((tq->removeat+1) % MAX_TASKS == tq->addat) {
-		pthread_cond_signal(&tq->notifycond);
-	}
+	...
 }
 
 T gettask(T *tq) {
@@ -1670,15 +1666,12 @@ T gettask(T *tq) {
 		my_lock_char(tq);
 		if (tq->removeat == tq->addat) {
 			my_unlock_char(tq);
-			pthread_cond_wait(&tq->notifycond,&tq->notifymutex);
+			...
 		}
 	}  while (tq->removeat == tq->addat);
-
-	t = tq->ts[tq->removeat];
-	if (++tq->removeat == MAX_TASKS)
-		tq->removeat = 0;
+    ...
 	my_unlock_char(tq);
-	pthread_mutex_unlock(&tq->notifymutex);
+	...
 	return(t);
 }
 
@@ -1700,26 +1693,20 @@ void stage2() {
 	}
 }
 
-void makeThread(void (*Worker)(),long t) {
-	...
-	pthread_create(pt, NULL, (void *(*)(void *))Worker, (void *)t);
-}
-
 void createpipefarm(void (*Worker1)(), void (*Worker2)(), int n1, int n2) {
 	for (long i=0; i< n1; i++) 
-		makeThread(Worker1, i);
+		pthread_create(pt, NULL, (void *(*)(void *))Worker1, (void *)t);
 
 	for (long i=0; i<n2; i++)
-		makeThread(Worker2, i+n1);
+		pthread_create(pt, NULL, (void *(*)(void *))Worker2, (void *)t);
 }
-
+...
 for (int i=0; i<NIMGS; i++) {
 	images[i] = (char *) malloc (sizeof(char)*1000);
 	copyImage(images[i]);
 	puttask(tq1, images[i]);
 }
 createpipefarm(stage1, stage2, nworkers1, nworkers2);
-
 for (int i=0; i<NIMGS; i++) {
 	gettask(tq3);
 }
@@ -1727,7 +1714,7 @@ for (int i=0; i<NIMGS; i++) {
 
 For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. The example first sets up a queue of input tasks, at Lines 67-71, placing images onto a task queue, \lstinline{tq1}; \lstinline{createpipefarm} is then called, which is defined on Line 59, setting up the various threads for the workers that will be come the pipeline stages; finally, Lines 74-76 show the results from the pipeline being retrieved from an output queue, \lstinline{tq3}. The pipeline stages are shown at Line 36 and 45, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's respecting input queue (\lstinline{tq1} for \lstinline{stage1}, and \lstinline{tq2} for \lstinline{stage2}), computes the unit of work on the task item (Lines 40 and 49) and then places the result on an output queue (Lines 41 and 50). Each \lstinline{puttask} and \lstinline{gettask} function (here simplified over an abstract type \lstinline{T} for brevity) uses pthread locking and unlocking mechanisms for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. 
 
-\begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token}]
+\begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token},frame=single]
 if ((int)(task_t)t == EOS) {
 	puttask(tq2, (task_t2 *)EOS);
 	break;
@@ -1736,7 +1723,7 @@ if ((int)(task_t)t == EOS) {
 
 The \emph{first step} to restoration is to first remove the pthreading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token,\lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue; when a stage pulls this token off the input queue, the stage terminates. An example of adding this termination token is shown in Listing~\ref{convo1}.
 
-\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed}]
+\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
 do {
 	char old_value ;
 	char new_value = 1 ;
@@ -1758,7 +1745,7 @@ puttask(tq3, r2);
 
 The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and out queue). The result is shown in Listing~\ref{convo2}.
 
-\begin{lstlisting}[label=convo3,caption={Convolution Shaped}]
+\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
 for (int i=0; i<NIMGS; i++) {
 	workerStage3(workerStage2(workerStage1(i)));
 }
@@ -1767,40 +1754,8 @@ for (int i=0; i<NIMGS; i++) {
 The final step in the shaping process is to arrive at the code shown in Listing~\ref{convo3}, where we remove the input and output queues completely, and transform the program into a simple function composition; the function composition has been \emph{unfolded} into the original \lstinline{for} loop (Line 67 from Listing~\ref{convo1}), and the loops merged into a single loop. 
 
 
-\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB}]
-class Stage1 {
-private:
-	int bound;
-
-public:
-	Stage1(int NIMGS):bound{NIMGS} {};
-	~Stage1() {};
-
-	task_t2* operator()(tbb::flow_control& fc) const {
-	double number;
-	if (countA == bound) {
-		fc.stop();
-		return NULL;
-	}
-	count++;
-	return (workerStage1(count-1));
-	}
-};
-
-class Stage2 {
-public:
-	int operator()(task_t2* input) const {
-		return (workerStage2(input));
-	}
-};
-
-class Stage3 {
-public:
-	void operator()(int input) const {
-		return (workerStage3(input));
-	}
-};
-
+\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
+...
 void RunPipeline(int ntoken, int NIMGS) {
 	tbb::parallel_pipeline(
 		ntoken,
@@ -1813,9 +1768,8 @@ void RunPipeline(int ntoken, int NIMGS) {
 		tbb::make_filter<int,void>(
 			tbb::filter::serial_in_order, Stage3() ));
 }
-
 ...
-RunPipeline(1, NIMGS);
+RunPipeline(NIMGS, NIMGS);
 \end{lstlisting}
 
 Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised using a structured pattern approach. Here we use TBB, to define a pipeline, using C++ classes, as shown in Listing~\ref{convo4}.
@@ -1845,13 +1799,13 @@ Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised 
 		\hline
 		& Before & After & Before & After & Before & After  \\
 		\hline
-		Blackscholes &  29 & 29 & 366 & 393 & &   \\
+		Blackscholes &  29 & 29 & 366 & 393 & & 2.4  \\
 		Matrix Multiplication & 19 & 15 & 176 & 146 & &  \\
-		Mandelbrot & 12 & 11 & 145 & 142 & & \\
-		NQueens &  & & & & &  \\
+		Mandelbrot & 12 & 11 & 145 & 142 & & 1480 \\
+		NQueens & 41 & 24 & 421 & 337 & &  \\
 		Cholesky Decomposition & 31  & 19 & 321 & 226 & &  \\
-		PGPry & 23 & 19 & 210 & 243 & & \\
-		Image Convolution & 71 & 29 & 714 & 280 & & \\
+		PGPry & 23 & 19 & 210 & 243 & & 139 \\
+		Image Convolution & 71 & 29 & 714 & 280 &  & 5.2 \\
 		\hline \hline
 	\end{tabular}
 	\caption{Metrics for each benchmark}
@@ -1875,8 +1829,8 @@ High-level parallel patterns, sometimes known as \emph{algorithmic skeletons} of
 A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{DBLP:journals/mis/JinLWY15}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
 Since patterns are well-defined, rewrites can be used to automatically explore the space of equivalent patterns, e.g.\ optimising for performance~\cite{DBLP:conf/europar/MatsuzakiKIHA04,DBLP:conf/ipps/GorlatchWL99} or generating optimised code as part of a DSL~\cite{DBLP:conf/dagstuhl/Gorlatch03}. Moreover, since patterns are architecture-agnostic, patterns have been similarly implemented for multiple architectures~\cite{DBLP:conf/cgo/HagedornSSGD18,DBLP:conf/parco/ReyesL15}.
 
-\section{Conclusions and future work} \label{sec:Conclusions} 
-In this paper, we have outlined the software restoration methodology for converting legacy-parallel applications into structured parallel code using parallel patterns. This ensures portability, maintainability and adaptivity of parallel code while maintaining, and sometimes even increasing, performance. In the full version of this paper, we will also present refactorings to eliminate ad-hoc pthread parallelism from the legacy-parallel code, which is a first step in the proposed methodology of software restoration. Furthermore, we will evaluate software restoration on a number of realistic benchmarks and use-cases, doing parallelism removal automatically and other steps manually, and demonstrating benefit in terms of gained performance, increased adaptivity, portability and maintainability.
+\section{Conclusions} \label{sec:Conclusions} 
+In this paper, we have introduced a software restoration methodology for converting legacy-parallel applications into structured parallel code using parallel patterns. This ensures portability, maintainability and adaptivity of parallel code while maintaining, and sometimes even increasing, performance. We also presented transformations to eliminate ad-hoc pthread parallelism from legacy-parallel code, transformations that repair the code from bugs introduced by the elimination step, and , shape the code in order to patternise it. Furthermore, we evaluated out software restoration methodology on a number of realistic benchmarks and use-cases, demonstrating benefit in terms of gained performance, increased adaptivity, portability and maintainability.
 
 \appendix
 

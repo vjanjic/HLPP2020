@@ -1,0 +1,56 @@
+real    14m58.865s
+user    397m54.063s
+sys     18m9.858s
+./tbb 28 10000
+Total execution time: 965.835
+
+real    16m7.654s
+user    373m23.332s
+sys     75m54.027s
+./tbb 28 10000
+Total execution time: 894.741
+
+real    14m56.540s
+user    397m31.408s
+sys     18m11.239s
+./tbb 28 10000
+Total execution time: 936.864
+
+real    15m38.693s
+user    382m43.755s
+sys     53m15.405s
+./tbb 28 10000
+Total execution time: 907.659
+
+real    15m9.485s
+user    395m11.721s
+sys     26m59.309s
+[adb23@corryvreckan matmult]$
+
+real    15m9.210s
+user    393m28.933s
+sys     27m27.914s
+./pth 28 10000
+Total execution time: 905.453
+
+real    15m7.249s
+user    394m37.215s
+sys     26m3.676s
+./pth 28 10000
+Total execution time: 895.261
+
+real    14m57.042s
+user    397m18.817s
+sys     18m31.873s
+./pth 28 10000
+Total execution time: 910.672
+
+real    15m12.449s
+user    391m23.399s
+sys     31m44.792s
+./pth 28 10000
+Total execution time: 948.019
+
+real    15m49.835s
+user    378m13.626s
+sys     62m43.999s

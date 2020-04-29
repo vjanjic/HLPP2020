@@ -1,0 +1,10 @@
+- convolution .......... | TBB YES | PTH x
+- blackscholes ......... | TBB YES | PTH x
+- matmult .............. | TBB YES | PTH YES
+- mandelbrot ........... | TBB YES | PTH x
+- simplePipeWithQueues . | TBB x   | PTH YES
+- cholesky ............. | TBB x   | PTH x
+- nqueens(?) ........... | TBB x   | PTH x
+
+
+

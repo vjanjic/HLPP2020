@@ -1,0 +1,21 @@
+[adb23@corryvreckan mandelbrot]$ make runpth.3
+./pth.3
+Time to generate mandelbrot.png = 1477.49 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+[adb23@corryvreckan mandelbrot]$ make runpth.3
+./pth.3
+Time to generate mandelbrot.png = 1466.01 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+[adb23@corryvreckan mandelbrot]$ make runpth.3
+./pth.3
+Time to generate mandelbrot.png = 1481.79 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+[adb23@corryvreckan mandelbrot]$ make runpth.3
+./pth.3
+Time to generate mandelbrot.png = 1496.51 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+[adb23@corryvreckan mandelbrot]$ make runpth.3
+./pth.3
+Time to generate mandelbrot.png = 1521.19 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+[adb23@corryvreckan mandelbrot]$
