@@ -1639,28 +1639,19 @@ In this section, we present an evaluation of our restoration methodology on a nu
 \subsection{Image convolution}
 
 Image Convolution  is a technique widely used in image processing applications for
-blurring, smoothing and edge detection. We consider an instance of the image convolution from video processing applications, where we are given a list of images that are first read from a file and then processed by applying a filter. Applying a filter to an image consists of computing a scalar product of the filter weights with the input pixels within a window surrounding each of the output pixels:
+blurring, smoothing and edge detection. We consider an instance of the image convolution from video processing applications, where we are given a list of images that are rocessed by applying a filter. Applying a filter to an image consists of computing a scalar product of the filter weights with the input pixels within a window surrounding each of the output pixels:
 	
 \begin{equation}\label{eqn:01}
 \textit{out}(i,j)=\sum_{m}\sum_{n} \textit{in}(i-n,j-m)\times \textit{filt}(n,m)
 \end{equation}
 
 \begin{lstlisting}[label=convo0, caption={Original Convolution with PThreads}, frame=single]
-void puttask(queue_t *queue, task_t elem)
+void add_to_queue(queue_t *queue, task_t elem)
 {
-  pthread_mutex_lock(&queue->queue_lock);
-  /* If the queue is full, wait until something reads from it before adding a new element */
-  if (queue->nr_elements == queue->capacity) {
-    pthread_cond_wait(&queue->queue_cond_read,&queue->queue_lock);
-  }
-  queue->elements[queue->addTo] = elem;
-  queue->addTo = (queue->addTo + 1) % queue->capacity;
-  queue->nr_elements++;
-  pthread_cond_signal(&queue->queue_cond_write);
-  pthread_mutex_unlock(&queue->queue_lock);
+  /* Same as in Listing 1 */
 }
   
-task_t gettask(queue_t *queue)
+task_t read_from_queue(queue_t *queue)
 {
   ...
 }
@@ -1668,9 +1659,9 @@ task_t gettask(queue_t *queue)
 void* stage1() {
   ..
   while(1) {
-		t = gettask(tq1);
-		r = workerStage1(t);
-		puttask(tq2, r);
+    t = read_from_queue(tq1);
+    r = workerStage1(t); /* Reads in pixels from a file into an array */
+    add_to_queue(tq2, r);
   }
   return NULL;
 }
@@ -1678,9 +1669,9 @@ void* stage1() {
 void* stage2() {
   ..
   while(1) {
-		t = gettask(tq2);
-		r = workerStage2(t);
-		puttask(tq3, r);
+    t = read_from_queue(tq2);
+    r = workerStage2(t); /* Applies transformation to each pixel in a received array */
+    add_to_queue(tq3, r);
   }
   return NULL;
 }
@@ -1769,9 +1760,9 @@ int main (int argc, char **argv)
 
 %For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. The example first sets up a queue of input tasks, at Lines 67-71, placing images onto a task queue, \lstinline{tq1}; \lstinline{createpipefarm} is then called, which is defined on Line 59, setting up the various threads for the workers that will be come the pipeline stages; finally, Lines 74-76 show the results from the pipeline being retrieved from an output queue, \lstinline{tq3}. The pipeline stages are shown at Line 36 and 45, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's respecting input queue (\lstinline{tq1} for \lstinline{stage1}, and \lstinline{tq2} for \lstinline{stage2}), computes the unit of work on the task item (Lines 40 and 49) and then places the result on an output queue (Lines 41 and 50). Each \lstinline{puttask} and \lstinline{gettask} function (here simplified over an abstract type \lstinline{T} for brevity) uses pthread locking and unlocking mechanisms for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. 
 \noindent
-For the convolution example, we start off with a pthreaded version in Listing~\ref{convo0}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a sequence of images from the disk), the example creates the pipeline in Lines 46-49, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at Lines 20 and 30, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectively), computes the unit of work on the task item (lines 24 and 34) and then places the result on an output queue (Lines 25 and 35). Each \lstinline{puttask} and \lstinline{gettask} function uses pthread locking and conditional variables for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. The code for \lstinline{puttask} is shown in Lines 1-13.
+For the convolution example, we start off with a pthreaded version in Listing~\ref{convo0}, with a similar structure as the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a list of names of files with images), the example creates the pipeline in lines 37--40, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at lines 11 and 21, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectively), computes the unit of work on the task item (lines 15 and 25) and then places the result on an output queue (Lines 16 and 26). Functions \lstinline{add_to_queue} and \lstinline{read_from_queue} put a task in an output queue and read a task from an input queue, respectivelly, in a thread safe manner. The code for \lstinline{add_to_queue} was shown in Listing~\ref{lst:simplePipe}.
 
-The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token,\lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue; when a stage pulls this token off the input queue, the stage terminates (Listing~\ref{convo1}). 
+The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token, \lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue amd terminates the stages when received (Listing~\ref{convo1}).
 
 \begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token},frame=single]
   if ((int)(task_t)t == EOS) {
@@ -1801,7 +1792,7 @@ The \emph{first step} to restoration is to remove the threading code; this is a 
 %\end{lstlisting}
 
 \noindent
-The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and out queue). The result is shown in Listing~\ref{convo2}.
+The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and out queue, see Listing~\ref{convo2}). 
 
 \begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
   /* Unfolded gettask function, reutrning t1 as an input task to stage 1 */
@@ -1814,7 +1805,8 @@ The next step is to perform \emph{program shaping} which goes through various st
   tq2->nr_elements ++
 \end{lstlisting}
 
-The final step in the shaping process is to arrive at the code shown in Listing~\ref{convo3}, where we remove the input and output queues completely, and transform the program into a simple function composition; the function composition has been \emph{unfolded} into the original \lstinline{for} loop (Line 40-52 from Listing~\ref{convo0}), and the loops merged into a single loop. 
+\noindent
+The final step in the shaping process is to arrive at the code shown in Listing~\ref{convo3}, where we remove the input and output queues completely, and transform the program into a simple function composition; the function composition has been \emph{unfolded} into the original \lstinline{for} loop (Line 37--40 from Listing~\ref{convo0}), and the loops merged into a single loop. 
 
 %\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
 %for (int i=0; i<NIMGS; i++) {
@@ -1828,6 +1820,7 @@ for (int i=0; i<NIMGS; i++) {
 }
 \end{lstlisting}
 
+\noindent
 Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised using a structured pattern approach. Here we use TBB, to define a pipeline, using C++ classes, as shown in Listing~\ref{convo4}.
 
 %\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
