@@ -16,7 +16,7 @@
 
 \section{Introduction}
 
-Parallel patterns are a well established high-level parallel programming models for producing portable, maintainable, adaptive and efficient parallel code. They have been endorsed by some of the biggest IT companies, such as Intel and Microsoft, who have developed their own parallel pattern libraries (Intel TBB~\cite{DBLP:reference/parallel/X11pz}, Microsoft PPL etc.) A standard way to use these libraries is to start with a sequential code base, identifying in it the portions of code that are amenable to parallelisation, together with the exact parallel pattern to be applied.  Then instantiating the identified pattern at the identified location in the code, after possibly restructuring the code to accommodate the parallelism. 
+Parallel patterns are a well-established high-level parallel programming model for producing portable, maintainable, adaptive, and efficient parallel code. They have been endorsed by some of the biggest IT companies, such as Intel and Microsoft, who have developed their own parallel pattern libraries (Intel TBB~\cite{DBLP:reference/parallel/X11pz}, Microsoft PPL, etc.) A standard way to use these libraries is to start with a sequential code base, identifying in it the portions of code that are amenable to parallelisation, together with the exact parallel pattern to be applied.  Then instantiating the identified pattern at the identified location in the code, after possibly restructuring the code to accommodate the parallelism. 
 
 %Figure~\ref{fig:matmult} shows an example of sequential and parallel patterned-code of Matrix Multiplication, one of the most common parallel benchmarks. 
 
@@ -80,27 +80,33 @@ Parallel patterns are a well established high-level parallel programming models 
   
 %\end{small}
 
-Sequential code gives the cleanest starting point for introduction of parallel patterns. There exists, however, a large base of \emph{legacy} code  that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads}~\cite{10.5555/263953}. This code is usually very hard to read and understand, is tailored to a specific parallelisation and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. An even bigger problem, from the software engineering perspective, is the maintainability of the legacy-parallel code: commonly, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms and sometimes even thread/task scheduling implemented in the code. 
+Sequential code gives the cleanest starting point for introduction of parallel patterns. There exists, however, a large base of \emph{legacy} code  that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads}~\cite{10.5555/263953}. This code is usually very hard to read and understand, is tailored to a specific parallelisation, and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. An even bigger problem, from the software engineering perspective, is the maintainability of the legacy-parallel code: commonly, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms, and sometimes even thread/task scheduling implemented in the code. 
 %
-The benefits of using parallel patterns lie in clear separation between sequential and parallel parts of the code and high-level description of the underlying parallelism, which makes the patterned applications much easier to maintain, change and adapt to new architectures. Here are some examples: 
-
-\begin{itemize}
-	\item The farm pattern models a data parallel computation, where a single computational worker, $f$, is applied to a set of independent inputs, $x_{1}, ..., x_{n}$. The parallelism arises from applying the worker, $f$, to different input elements at the same time in parallel. 
-	\item The pipeline pattern models a parallel pipeline. Here, a sequence of functions, $f_{1}, f_{2}, ..., f_{m}$ are applied to a stream on independent inputs, $x_{1}, ..., x_{n}$. The output of $f_{i}$ becomes the input to $f_{i+1}$, so that the parallelism arises from executing $f_{i+1}(f_{i}(...f_{1}(x_{k})...))$ in parallel with $f_{i}(f_{i-1}(...f_{1}(x_{k+1})...))$.
-\end{itemize}
+The benefits of using parallel patterns lie in a clear separation between sequential and parallel parts of the code and a high-level description of the underlying parallelism, making the patterned applications much easier to maintain, change, and adapt to new architectures. Common examples include \emph{farms} and \emph{pipelines}.
+%
+%\begin{itemize}
+%	\item 
+In a farm, a single computational worker is applied to a set of independent inputs. The parallelism arises from applying the worker to different input elements in parallel. 
+%	\item 
+%The pipeline pattern models a parallel pipeline. 
+In a parallel pipeline, a sequence of functions, $f_{1}, f_{2}, ..., f_{m}$ are applied to a stream of independent inputs, $x_{1}, ..., x_{n}$ where the output of $f_{i}$ becomes the input to $f_{i+1}$; the parallelism arises from executing $f_{i+1}(f_{i}(...f_{1}(x_{k})...))$ in parallel with $f_{i}(f_{i-1}(...f_{1}(x_{k+1})...))$.
+%\end{itemize}
 
 
 
 %Legacy-parallel code, written in an ad-hoc way using low level parallel libraries such as \emph{pthreads}, is still very much present in various software repositories and projects. This code was usually developed by parallelism experts, before the libraries and programming models for structured parallelisation became popular. It is usually tailored to one specific target machine and architecture, and might use highly-customised parallelisation and associated data structures. This makes it very hard to maintain the code, an increasing important feature in software engineering, or to port it to new architectures. 
   
-In this paper, we present a new methodology for the restoration of legacy-parallel code into an equivalent \emph{patternised} form, through application of a number of identified program transformations; the ultimate goal of which is to provide a semi-automatic way of converting legacy-parallel code into an equivalent patterned code, therefore increasing its maintainability, adaptivity and portability while keeping similar or, in some cases, even improving the performance. 
+In this paper, we present a new methodology for the restoration of legacy-parallel code into an equivalent \emph{patterned} form, through application of a number of identified program transformations; the ultimate goal of which is to provide a semi-automatic way of converting legacy-parallel code into an equivalent patterned code, therefore increasing its maintainability, adaptivity, and portability 
+%while keeping similar or, in some cases, even improving the performance. 
+whilst either improving or maintaining performance.
 %
 This paper makes the following specific research contributions:
+%
 \begin{enumerate}
     \item we present a novel software restoration methodology for converting legacy-parallel applications into their structured (patterned) parallel equivalents;
-    \item we present a new set of \emph{restoration} transformations that attempts to \emph{systematically}, i) eliminate \lstinline{pthreads} code from legacy C/C++ programs; ii) perform \emph{code repair} by further transforming the code so that it eliminates any bugs introduced by the parallelism elimination stage; and, iii) \emph{shaping} transformations, that prepare the code for parallel pattern introduction, using standard techniques;
-    eliminate parallelism from the legacy-parallel \lstinline{pthreads} code, providing semi-automatic implementation of the first step of software restoration methodology;
-    \item we evaluate these refactorings on a set of benchmarks, demonstrating that removal of parallelism can allow us to manually derive the structured parallel code that is comparable to the original legacy-parallel version in terms of performance, while being more portable, adaptive and maintainable.
+    \item we present a new set of \emph{restoration} transformations that attempt to \emph{systematically}, \emph{i}) \emph{eliminate} pthread operations from legacy C/C++ programs; \emph{ii}) perform \emph{code repair}, fixing any bugs introduced in \emph{i}; and, \emph{iii}) \emph{reshape} code in preparation for parallel pattern introduction;
+%    eliminate parallelism from the legacy-parallel \lstinline{pthreads} code, providing semi-automatic implementation of the first step of software restoration methodology;
+    \item we evaluate these transformations on a set of benchmarks, demonstrating that removal of parallelism can allow us to manually derive structured parallel code that is comparable to the original legacy-parallel version in terms of performance, while being more portable, adaptive, and maintainable.
 \end{enumerate}
 
 %\section{Background} \label{sec:background}
@@ -1634,7 +1640,7 @@ Here, in order to introduce a TBB pipeline, we keep the input and output to the 
 \section{Evaluation}
 \label{sec:evaluation}
 
-In this section, we present an evaluation of our restoration methodology on a number of examples of pthreaded C and C++ applications taken from a variety of domains, including image convolution, nqueens, cholesky decomposition, blackscholes, pgpry, mandelbrot and matrix multiplication. For each benchmark we evaluate the effectiveness of our technique using standard metrics, such as McCabe's Cyclomatic Complexity~\cite{10.1109/TSE.1976.233837}, lines of code and difference in runtimes between the original pthread version and the restored TBB version, using the maximum number of available cores; these results are summarised in Table~\ref{fig:benchmarks2}, which also labels if each benchmark is a standard task from implementation (F) or a pipeline, where each stage can also be farmed (P). 
+In this section, we present an evaluation of our restoration methodology on a number of examples of pthreaded C and C++ applications taken from a variety of domains, including image convolution, nqueens, cholesky decomposition, blackscholes, pgpry, mandelbrot and matrix multiplication. For each benchmark we evaluate the effectiveness of our technique using standard metrics, such as McCabe's Cyclomatic Complexity~\cite{10.1109/TSE.1976.233837}, lines of code and difference in runtimes between the original pthread version and the restored TBB version, using the maximum number of available cores; these results are summarised in Table~\ref{fig:benchmarks2}, which also labels if each benchmark is a standard task from implementation (F) or a pipeline, where each stage can also be farmed (P). All of our execution experiments are conducted on a server with Intel Xeon E5-2690 CPU with 28 cores, running at 2.6 GHz with 256 GB of RAM, with the Scientific Linux 6.2 operating system.
 
 \subsection{Image convolution}
 
@@ -1850,14 +1856,13 @@ Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised 
 
 \begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
 tbb::parallel_pipeline(
-	ntoken,
-	tbb::make_filter<void,task_t2*>(
-		tbb::filter::serial, Stage1(NIMGS) )
-	&
-	tbb::make_filter<task_t2*,int>(
-		tbb::filter::parallel, Stage2() )
-}
+	ntoken,tbb::make_filter<void,task_t2*>(tbb::filter::serial, Stage1(NIMGS) )
+	& 	tbb::make_filter<task_t2*,int>(tbb::filter::parallel, Stage2() )
 \end{lstlisting}
+
+\subsection{Discussion}
+
+Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchmarks. For all benchmarks we see comparable results in the McCabe metrics, where the TBB version gives a better result, apart from Blackscholes, where the complexity is equal, and Matrix Multiplication, where the complexity actually increases. This is most likely because both of these benchmarks are simple farms, and the TBB logic actually introduces some complexity over simply calling \lstinline{pthread_create} multiple times. The number of lines of code for the TBB version is mostly comparable, with most benchmarks showing a decrease in lines of code. Blackscholes shows a slight increase in LOC, most likely, again, due to the slight increase in code logic for TBB versus the pthread version. In terms of performance, again, the TBB versions are mostly comparable, with the exception of a few cases. For convolution, the TBB version performs 2.4x faster, due to the pthreading version introducing extra overheads in the locking code; Blackscholes also performs very slightly worse, by 0.5 seconds. 
 
 %\begin{table}
 %	\begin{tabular}{|c|c|c|}
@@ -1902,13 +1907,13 @@ tbb::parallel_pipeline(
 %\paragraph{Software Restoration}
 
 The concept of a \emph{systematic}, or \emph{structured} approach to \emph{software restoration} has, to our knowledge, been largely previously unexplored. A concept that is probably most related to \emph{software restoration} is that of \emph{reverse engineering}, which is a technique used to retrieve high-level requirements from existing sequential code~\cite{10.1145/287000.287001}\cite{10.1145/337180.337234}. Yu et al.~\cite{10.1109/RE.2005.61} proposed a technique that attempts to use refactoring to try and recover requirements goal models from legacy code. However, the work only targets sequential code and only capture high-level information that is not useful for parallel restoration.
-
+%
 %\paragraph{Refactoring}
 Refactoring has roots in Burstall and Darlington's fold/unfold system~\cite{darlington77}, and has been applied to a wide range of applications as an approach to program transformation~\cite{mens_refactoring}, with refactoring tools a feature of popular IDEs including, \textit{i.a.}, Eclipse~\cite{EclipseWeb} and Visual Studio~\cite{VisualStudioWeb}.
 Previous work on parallelisation \textit{via} refactoring has primarily focussed on the introduction and manipulation of parallel pattern libraries in C++~\cite{brownagricultural,DBLP:conf/pdp/JanjicBMHDAG16} and Erlang~\cite{hlpp,DBLP:journals/cai/BarwellBHTB16}. Another approach
 has been the automated introduction of annotations in the form of
 C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallel loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
-
+%
 %\paragraph{Parallel Patterns}
 High-level parallel patterns, sometimes known as \emph{algorithmic skeletons} offer high-level abstraction over low-level concurrency methods~\cite{Asanovic:2009:VPC,DBLP:journals/spe/Gonzalez-VelezL10}.
 A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{DBLP:journals/mis/JinLWY15}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
