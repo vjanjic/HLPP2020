@@ -1884,13 +1884,13 @@ tbb::parallel_pipeline(
 		\hline
 		& & Before & After & Before & After & Before & After  \\
 		\hline
-		Blackscholes & F &  29 & 29 & 366 & 393 & & 39  \\
+		Blackscholes & F &  29 & 29 & 366 & 393 & 38.5 & 39  \\
 		Matrix Multiplication & F & 9 & 15 & 176 & 146 & 909.4 & 896.5  \\
 		Mandelbrot & F  & 12 & 11 & 145 & 142 & 2.21 & 2.28 \\
 		NQueens & P & 41 & 24 & 421 & 337 & 62.3 & 20.6  \\
 		Cholesky Decomposition & P & 31  & 19 & 321 & 226 & 12.7 & 1.1 \\
 		PGPry & P & 23 & 19 & 210 & 243 & 138.1 & 131 \\
-		Image Convolution & P & 71 & 29 & 714 & 280 &  & 5.2 \\
+		Image Convolution & P & 71 & 29 & 714 & 280 & 12.85  & 5.2 \\
 		\hline \hline
 	\end{tabular}
 	\caption{Metrics for each benchmark, where F = Farm, and P = Pipeline; performance times are in seconds on a 28-core machine.}

@@ -1,0 +1,72 @@
+[adb23@corryvreckan v2]$ for x in 1 2 3 4 5; do time ./convolution 8 14 500; done
+size of tq is 0 500
+total_time, 12.9385
+total lock, 3022
+total unlock, 3530
+lock char, 1008
+unlock char, 1008
+lock tq, 1000
+lock tq, 1000
+lock t_task_t, 1014
+lock t_task_t, 1014
+
+real    0m13.119s
+user    2m18.323s
+sys     0m3.094s
+size of tq is 0 500
+total_time, 8.40364
+total lock, 3022
+total unlock, 3532
+lock char, 1008
+unlock char, 1008
+lock tq, 1000
+lock tq, 1000
+lock t_task_t, 1014
+lock t_task_t, 1014
+
+real    0m8.582s
+user    2m18.799s
+sys     0m3.052s
+size of tq is 0 500
+total_time, 10.6549
+total lock, 3022
+total unlock, 3531
+lock char, 1008
+unlock char, 1008
+lock tq, 1000
+lock tq, 1000
+lock t_task_t, 1014
+lock t_task_t, 1014
+
+real    0m10.849s
+user    2m18.603s
+sys     0m3.162s
+size of tq is 0 500
+total_time, 23.0457
+total lock, 3022
+total unlock, 3526
+lock char, 1008
+unlock char, 1008
+lock tq, 1000
+lock tq, 1000
+lock t_task_t, 1014
+lock t_task_t, 1014
+
+real    0m23.246s
+user    2m18.203s
+sys     0m3.132s
+size of tq is 0 500
+total_time, 8.40758
+total lock, 3022
+total unlock, 3534
+lock char, 1008
+unlock char, 1008
+lock tq, 1000
+lock tq, 1000
+lock t_task_t, 1014
+lock t_task_t, 1014
+
+real    0m8.613s
+user    2m19.056s
+sys     0m3.099s
+[adb23@corryvreckan v2]$
