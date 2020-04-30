@@ -1,0 +1,37 @@
+[adb23@corryvreckan x86-2]$ for x in 1 2 3 4 5; do time make runtbb; done
+# ./tbb 28 500 xx
+./tbb 18 28
+Number of solutions is 666090624
+
+real    0m20.241s
+user    8m32.662s
+sys     0m3.142s
+# ./tbb 28 500 xx
+./tbb 18 28
+Number of solutions is 666090624
+
+real    0m20.461s
+user    8m35.399s
+sys     0m3.332s
+# ./tbb 28 500 xx
+./tbb 18 28
+Number of solutions is 666090624
+
+real    0m20.686s
+user    8m38.500s
+sys     0m3.167s
+# ./tbb 28 500 xx
+./tbb 18 28
+Number of solutions is 666090624
+
+real    0m20.610s
+user    8m38.982s
+sys     0m2.960s
+# ./tbb 28 500 xx
+./tbb 18 28
+Number of solutions is 666090624
+
+real    0m20.988s
+user    8m42.567s
+sys     0m2.978s
+[adb23@corryvreckan x86-2]$

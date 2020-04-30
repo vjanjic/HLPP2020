@@ -1,0 +1,47 @@
+[adb23@corryvreckan PTH_simplePipeWithQueues]$ for x in 1 2 3 4 5; do time make runpth.tbb; done
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    0m7.298s
+user    2m56.514s
+sys     0m2.667s
+
+real    0m7.305s
+user    2m56.516s
+sys     0m2.672s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    0m7.255s
+user    2m54.950s
+sys     0m2.498s
+
+real    0m7.262s
+user    2m54.954s
+sys     0m2.500s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    0m7.238s
+user    2m55.101s
+sys     0m2.933s
+
+real    0m7.244s
+user    2m55.106s
+sys     0m2.934s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    0m7.294s
+user    2m56.529s
+sys     0m3.010s
+
+real    0m7.300s
+user    2m56.530s
+sys     0m3.015s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    0m7.275s
+user    2m55.097s
+sys     0m2.937s
+
+real    0m7.281s
+user    2m55.101s
+sys     0m2.939s
+[adb23@corryvreckan PTH_simplePipeWithQueues]$

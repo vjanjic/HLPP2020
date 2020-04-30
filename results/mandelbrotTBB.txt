@@ -19,3 +19,46 @@ cp ./mandelbrot.png ./mandelbrot.pth.3.png
 Time to generate mandelbrot.png = 1521.19 [ms]
 cp ./mandelbrot.png ./mandelbrot.pth.3.png
 [adb23@corryvreckan mandelbrot]$
+
+
+---
+with times:
+
+
+[adb23@corryvreckan mandelbrot]$ for x in 1 2 3 4 5; do time make runpth.3; done
+./pth.3
+Time to generate mandelbrot.png = 1502.49 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+
+real    0m2.311s
+user    1m17.119s
+sys     0m0.106s
+./pth.3
+Time to generate mandelbrot.png = 1457.41 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+
+real    0m2.291s
+user    1m17.860s
+sys     0m0.152s
+./pth.3
+Time to generate mandelbrot.png = 1458.21 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+
+real    0m2.200s
+user    1m17.907s
+sys     0m0.105s
+./pth.3
+Time to generate mandelbrot.png = 1464.55 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+
+real    0m2.280s
+user    1m17.263s
+sys     0m0.166s
+./pth.3
+Time to generate mandelbrot.png = 1445.21 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.3.png
+
+real    0m2.263s
+user    1m17.847s
+sys     0m0.095s
+[adb23@corryvreckan mandelbrot]$

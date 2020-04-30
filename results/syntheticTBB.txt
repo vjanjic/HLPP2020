@@ -1,0 +1,48 @@
+[adb23@corryvreckan PTH_simplePipeWithQueues]$ for x in 1 2 3 4 5; do time make runpth.tbb; done
+g++ pth.tbb.cpp -lpthread -ltbb -std=c++11 -o pth.tbb
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    2m11.611s
+user    3m12.580s
+sys     0m18.126s
+
+real    2m11.840s
+user    3m12.759s
+sys     0m18.176s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    2m11.573s
+user    3m15.789s
+sys     0m18.119s
+
+real    2m11.579s
+user    3m15.793s
+sys     0m18.121s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    2m11.560s
+user    3m17.151s
+sys     0m17.216s
+
+real    2m11.566s
+user    3m17.153s
+sys     0m17.220s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    2m11.546s
+user    3m15.513s
+sys     0m16.797s
+
+real    2m11.553s
+user    3m15.516s
+sys     0m16.801s
+time ./pth.tbb && mv ./results ./results_pth.tbb.txt
+
+real    2m11.546s
+user    3m16.425s
+sys     0m17.151s
+
+real    2m11.552s
+user    3m16.428s
+sys     0m17.154s
+[adb23@corryvreckan PTH_simplePipeWithQueues]$

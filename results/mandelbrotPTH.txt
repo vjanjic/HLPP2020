@@ -1,0 +1,37 @@
+[adb23@corryvreckan mandelbrot]$ for x in 1 2 3 4 5; do time make runpth; done
+./pth
+Time to generate mandelbrot.png = 1412.31 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.png
+
+real    0m2.218s
+user    1m18.808s
+sys     0m0.098s
+./pth
+Time to generate mandelbrot.png = 1414.93 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.png
+
+real    0m2.211s
+user    1m18.806s
+sys     0m0.110s
+./pth
+Time to generate mandelbrot.png = 1418 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.png
+
+real    0m2.217s
+user    1m18.787s
+sys     0m0.103s
+./pth
+Time to generate mandelbrot.png = 1417.22 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.png
+
+real    0m2.243s
+user    1m19.128s
+sys     0m0.089s
+./pth
+Time to generate mandelbrot.png = 1409.63 [ms]
+cp ./mandelbrot.png ./mandelbrot.pth.png
+
+real    0m2.206s
+user    1m18.790s
+sys     0m0.095s
+[adb23@corryvreckan mandelbrot]$

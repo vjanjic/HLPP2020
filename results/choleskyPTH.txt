@@ -1,0 +1,37 @@
+[adb23@corryvreckan x86-2]$ for x in 1 2 3 4 5; do time make runpth; done
+./pth 28 500 xx
+Truco
+
+real    0m12.660s
+user    5m30.387s
+sys     0m0.553s
+./pth 28 500 xx
+Truco
+
+real    0m12.737s
+user    5m32.579s
+sys     0m0.578s
+./pth 28 500 xx
+Truco
+
+real    0m12.820s
+user    5m33.239s
+sys     0m0.557s
+./pth 28 500 xx
+Truco
+
+real    0m12.659s
+user    5m30.608s
+sys     0m0.588s
+./pth 28 500 xx
+Truco
+
+real    0m12.719s
+user    5m31.592s
+sys     0m0.583s
+./pth 28 500 xx
+Truco
+
+real    0m12.845s
+user    5m33.666s
+sys     0m0.561s

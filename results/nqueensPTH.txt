@@ -1,0 +1,37 @@
+[adb23@corryvreckan x86-2]$ for x in 1 2 3 4 5; do time make runpth; done
+# ./pth 28 500 xx
+./pth 18
+Number of solutions is 666090624
+
+real    1m2.344s
+user    8m11.442s
+sys     0m0.011s
+# ./pth 28 500 xx
+./pth 18
+Number of solutions is 666090624
+
+real    1m2.308s
+user    8m11.542s
+sys     0m0.008s
+# ./pth 28 500 xx
+./pth 18
+Number of solutions is 666090624
+
+real    1m2.284s
+user    8m11.176s
+sys     0m0.008s
+# ./pth 28 500 xx
+./pth 18
+Number of solutions is 666090624
+
+real    1m2.317s
+user    8m11.354s
+sys     0m0.006s
+# ./pth 28 500 xx
+./pth 18
+Number of solutions is 666090624
+
+real    1m2.343s
+user    8m11.227s
+sys     0m0.013s
+[adb23@corryvreckan x86-2]$

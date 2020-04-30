@@ -1,0 +1,47 @@
+[adb23@corryvreckan blackscholes]$ for x in 1 2 3 4 5; do time make runpth; done
+./pth 28 inputs/in_10M.txt out_pth.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+Num Errors: 0
+
+real    0m38.623s
+user    6m17.075s
+sys     0m0.938s
+./pth 28 inputs/in_10M.txt out_pth.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+Num Errors: 0
+
+real    0m38.599s
+user    6m18.522s
+sys     0m0.955s
+./pth 28 inputs/in_10M.txt out_pth.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+Num Errors: 0
+
+real    0m38.485s
+user    6m17.061s
+sys     0m0.958s
+./pth 28 inputs/in_10M.txt out_pth.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+Num Errors: 0
+
+real    0m38.525s
+user    6m17.343s
+sys     0m0.969s
+./pth 28 inputs/in_10M.txt out_pth.txt
+Num of Options: 10000000
+Num of Runs: 100
+Size of data: 400000000
+Num Errors: 0
+
+real    0m38.440s
+user    6m17.296s
+sys     0m0.953s
+[adb23@corryvreckan blackscholes]$
