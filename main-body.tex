@@ -184,7 +184,7 @@ Software restoration is based on program transformation and code analysis and ai
 \item \emph{replace} the removed parallel primitives with instances of parallel patterns.
 \end{enumerate}
 \noindent
-The input to the Software Restoration process is a legacy-parallel C/C++ code that is based on some low-level parallelism library, such as pthreads, and the output is the semantically-equivalent code based on parallel patterns. In this way, we obtain well-structured code based on a higher level of parallel abstraction, which is significantly more maintainable and adaptive while still preserving
+The input to the Software Restoration process is legacy-parallel C/C++ code that is based on some low-level parallelism library, such as pthreads, and the output is the semantically-equivalent code based on parallel patterns. In this way, we obtain well-structured code based on a higher level of parallel abstraction, which is significantly more maintainable and adaptive while still preserving
 good performance of the original, highly-tuned parallel version. In this paper, we will focus on the TBB library as our target code. 
 
 The Software Restoration methodology consists of a number of steps, each applying a class of code transformations, some of which are driven by the pattern discovery code analysis.  The whole process is depicted in Figure~\ref{fig:SoftRest}. In the below description, we will focus on the code transformation steps. We will use a synthetic, but representative, parallel pipeline as a running example in order to demonstrate the transformation. Listing~\ref{lst:simplePipe} presents aspects of the original parallel code with pthreads that are pertinent to this demonstration.
@@ -208,20 +208,21 @@ int main(int argc, char *argv[]) {
 // and writes it to the output queue.
 void *Stage2(void *arg) {
   int my_input, my_output;
-  
   pipeline_stage_queues_t *myQueues = (pipeline_stage_queues_t *)arg;
   queue_t *myOutputQueue = myQueues->outputQueue;
   queue_t *myInputQueue = myQueues->inputQueue;
-  
-  do {
-    my_input = read_from_queue(myInputQueue);
-    if (my_input > 0)
+
+  for (my_input = read_from_queue(myInputQueue);
+       my_input>0 || my_input == EOS;
+       my_input = read_from_queue(myInputQueue)) {
+    if (my_input != EOS) {
       my_output = my_input + 1;
-    else // 0 is a terminating token. Pass on if received.
-      my_output = 0;
-    add_to_queue(myOutputQueue, my_output);
-  } while (my_input>0);
-  
+      add_to_queue(myOutputQueue, my_output);
+    } else { // EOS is a terminating token. Pass on if received.
+      add_to_queue(myOutputQueue, EOS);
+      break;
+    }
+  }
   return NULL;
 }
 
@@ -240,17 +241,17 @@ void add_to_queue(queue_t *queue, int elem)
 \end{lstlisting}
 
 \noindent
-In the above \lstinline|main| function (Lines 1--12), a pipeline of three stages is created using three threads. The stages are connected by queues such that the first stage has an output queue, and stages two and three have both an input and an output queue. After creation, the \lstinline|main| function waits for the threads to finish their work (Lines 8--9) before continuing. In Lines 14--32, we show the function for the middle stage of the pipeline, which reads an integer from the input queue, increments it by one, then puts it into the output queue. The first and third stages have a similar structure, where the first stage acts as a source of integers for the second stage, and the third stage doubles its inputs before adding them to the final output queue.
+In the above \lstinline|main| function (Lines 1--12), a pipeline of three stages is created using three threads. The stages are connected by queues such that all stages have an output queue, and stages two and three have an input queue. After creation, the \lstinline|main| function waits for the threads to finish their work (Lines 8--9) before continuing. In Lines 14--34, we show the function for the middle stage of the pipeline, which reads an integer from the input queue, increments it by one, then puts it into the output queue. The first and third stages have a similar structure, where the first stage acts as a source of integers for the second stage, and the third stage doubles its inputs before adding them to the final output queue.
 
-All the relevant synchronisation code for the queues can be found in two functions: \lstinline{add_to_queue} and \lstinline{read_from_queue}. Only \lstinline{add_to_queue} (Lines 35--46) is shown here, since \lstinline{read_from_queue} is similar. Both functions use one mutex lock and two conditional variables. The conditional variables are used for synchronisation when threads are waiting to insert an element into a full queue or for reading from an empty queue (e.g.\ at the start of the program). When a thread needs to add to the queue, it first acquires the queue lock and checks if the queue is full (Lines 39--40).
+All the relevant synchronisation code for the queues can be found in two functions: \lstinline{add_to_queue} and \lstinline{read_from_queue}. Only \lstinline{add_to_queue} (Lines 36--37) is shown here; \lstinline{read_from_queue} is similar. Both functions use one mutex lock and two conditional variables. The latter are used for synchronisation when threads are waiting to insert an element into a full queue or for reading from an empty queue (e.g.\ at the start of the program). When a thread needs to add to the queue, it first acquires the queue lock and checks if the queue is full (Lines 38--41).
 %in which case writing a new element is impossible. 
-When the queue is full, the thread releases the lock and waits for a signal that some other thread has consumed an element of this queue (\lstinline{queue->queue_cond_read} conditional variable at line 40). After this conditional variable is signalled, the thread adds the element to the queue, updating the queue counter and pointer in the process (Lines 42--44). Finally, the thread signals that an element has been added to the queue (\lstinline{queue->queue_cond_write} conditional variable in Line 44) and releases the queue lock (Line 45) before returning.
+When the queue is full, the thread releases the lock and waits for a signal that some other thread has consumed an element of this queue (\lstinline{queue->queue_cond_read} conditional variable, line 41). After this conditional variable is signalled, the thread enqueues the element, updating the queue counter and pointer in the process (Lines 42--44). Finally, the thread signals that an element has been added to the queue (\lstinline{queue->queue_cond_write} conditional variable, Line 45) and releases the queue lock (Line 46) before returning.
 
 \paragraph{Parallelism Elimination.}
-The initial code analysis step, \emph{Initial Pattern Discovery}, analyses the original pthreaded code and discovers those parts of it, if any, that correspond to instances of parallel patterns. In our example, this stage identifies the pipeline created in Lines 4--6, with the pipeline stages being the functions: \lstinline{Stage1}, \lstinline{Stage2}, and \lstinline{Stage3}. 
-Following pattern discovery, the first code transformation step is applied, where pthread operations and primitives are either removed or transformed so as to eliminate parallelism.
+The initial step, \emph{Initial Pattern Discovery}, analyses the original pthreaded code and discovers those parts of it, if any, that correspond to instances of parallel patterns. In our example, this stage identifies the linear pipeline created in Lines 4--6, with the pipeline stages being the functions: \lstinline{Stage1}, \lstinline{Stage2}, and \lstinline{Stage3}. 
+Following pattern discovery, the first code transformation step is applied, where pthread operations and primitives are either removed or transformed, eliminating parallelism.
 %This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on.
-In Listing~\ref{lst:simplePipe}, this impacts the \lstinline|main| and \lstinline|add_to_queue| functions; Listing~\ref{lst:pipeParRem} gives the results of parallelism elimination on both functions.
+In Listing~\ref{lst:simplePipe}, this impacts \lstinline|main| and \lstinline|add_to_queue|; where Listing~\ref{lst:pipeParRem} shows the resulting code.
 
 \begin{lstlisting}[caption=Simple Pipeline Code with Parallelism Removed, frame=single, label=lst:pipeParRem]
 int main(int argc, char *argv[]) {
@@ -276,66 +277,69 @@ void add_to_queue(queue_t *queue, int elem) {
 %Note that all the \lstinline{pthread_} calls from the Listing~\ref{lst:simplePipe} have either been removed or replaced with the calls to the underlying functions (in the case of \lstinline{pthread_create}).
 %Note, however that the code obtained in this
 %way would not work.
-Whilst all pthread operations have been removed or transformed, and the program is now sequential, the Parallelism Elimination stage \emph{does not guarantee that a program's semantics are preserved}.
 %
-Accordingly, as in our running example, errors may be introduced.
+%Whilst all pthread operations have been removed or transformed, and the program is now sequential, t
 %
-Here, \lstinline|Stage1| contains a \lstinline|do|-loop that adds items to its output queue. Since the second stage, which reads from that queue, is no longer consuming those elements concurrently, and the queue is smaller than the total number of elements produced, the second stage will now consume and process only a subset of its inputs in the original pthreaded version after \lstinline|Stage1| returns.
+We note that the Parallelism Elimination stage \emph{does not guarantee that a program's semantics are preserved} and thus errors may be introduced.
+%
+%Accordingly, as in our running example, errors may be introduced.
+%
+Here, \lstinline|Stage1| contains a \lstinline|for|-loop that enqueues elements in its output queue. Since the second stage, which reads from that queue, is no longer consuming those elements concurrently, and the queue is smaller than the total number of elements produced, the second stage will now consume and process only a subset of its inputs in the original pthreaded version after \lstinline|Stage1| returns.
 %
 %Note that if the number of integers produced by \lstinline|Stage1| were infinite, or \lstinline|add_to_queue| was not implemented such that elements are overwritten when adding elements to a full queue, the loop in \lstinline|Stage1| could either loop infinitely or crash the program. 
 %
-Ultimately, the semantics and output of the program produced by the Parallelism Elimination stage is not the same as the original pthreaded program; the code must therefore be \emph{repaired}.
+%Ultimately, the semantics of the program produced by the Parallelism Elimination stage is not the same as the original pthreaded program; the code must therefore be \emph{repaired}.
+%
+Because the semantics of the program have changed following Parallelism Elimination, the code must be \emph{repaired}.
 
 
 %function would be executed, which would just write all its outputs into its output queue (in a circular way), therefore overwriting the data possibly multiple times. After \lstinline{Stage1} finishes,
 %\lstinline{Stage2} would start, read all the elements currently in its input queue (which would be just a subset of all the data produced by \lstinline{Stage1}) and write them to the output queue. It is clear that in this way there would be loss of data, so the output that the final stage produces would not be the same as in the parallel version.
 
 \paragraph{Code Repair.}
-As observed in the previous step, Parallelism Elimination might result in code that is broken and, hence, not semantically equivalent to the original legacy-parallel code.
+%As observed in the previous step, Parallelism Elimination might result in code that is broken and, hence, not semantically equivalent to the original legacy-parallel code.
 %
-Our example is just one of many instances in which merely removing pthread constructs actually breaks the code (see Section~\ref{sec:evaluation} for more examples). The next step in Software Restoration is, therefore, to repair the potentially broken code produced by Parallelism Elimination. Due to the potential complexity of this repair stage, multiple transformations may need to be applied.
+Our example is just one of many in which merely removing pthread constructs introduces errors (see Section~\ref{sec:evaluation} for more examples). The next step in Software Restoration is, therefore, to repair the potentially broken code produced by Parallelism Elimination. In general, due to the potential complexity of this repair stage, multiple transformations may need to be applied.
 %
 %In our pipeline example, this is actually the most complicated step of the whole methodology and the resulting code is given in Listing~\ref{lst:pipeRepaired}.
 
-In order to repair the broken pipeline in our running example it is necessary to stop the first stage from overflowing its output queue. This can be achieved by merging the loops found in \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3|, thereby resulting in loop where the operations in stages two and three are applied to each integer produced by stage one in the same iteration that produces it. The result of this process can be found below in Listing~\ref{lst:pipeRepaired}.
-
+In order to effect repairs in our running example it is necessary to stop the first stage from overflowing its output queue. This can be achieved by merging the loops found in \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3|, thereby resulting in loop where the operations in stages two and three are applied to each integer produced by stage one in the same iteration that produces it. Listing~\ref{lst:pipeRepaired} represents the result of this process, where \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| are first \emph{lifted} into a new function, \lstinline|Pipe|, and subsequently \emph{unfolded}. The \lstinline|for|-loops exposed by this unfolding are then merged, allowing all three stages to be executed within a single iteration. This avoids the first stage overflowing its output queue, and consequently, results in a program that is sequential but semantically equivalent to the original pthreaded program.
 
 %it is necessary to immediately apply the second and third stages of the pipeline to each integer produced by the first stage.
 
 \begin{lstlisting}[caption=Simple Pipeline Code after Code Repair, frame=single, label=lst:pipeRepaired]
-void Pipe(void* a1, void* a2, void* a3) {
-  // STAGE ONE
-  int my_output_1, i_1 = MAXDATA;
-  
-  pipeline_stage_queues_t *myQueues_1 = (pipeline_stage_queues_t *)a1;
-  queue_t *myOutputQueue_1 = myQueues_1->outputQueue;
-
-  // STAGE TWO
-  int my_input_2, my_output_2;
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
+  int my_output1, i1;
+  pipeline_stage_queues_t *myQueues1 = (pipeline_stage_queues_t *)a1;
+  queue_t *myOutputQueue1 = myQueues1->outputQueue;
   ...
-  do {
-    // STAGE ONE
-    if (i_1 >= -1) { ... }
+  for (i1 = MAXDATA ; i1>=0; i1--) {
+    if (i1 > 0) { ...
+      my_output1 = i1;
+    } else {
+      my_output1 = EOS;
+    }
+    add_to_queue(myOutputQueue1, my_output1);
 
-    // STAGE TWO
-    my_input_2 = read_from_queue(myInputQueue_2);
-    if (my_input_2 >= 0) {
-      if (my_input_2 > 0)
-        my_output_2 = my_input_2 + 1;
-      else
-        my_output_2 = 0;
-      add_to_queue(myOutputQueue_2, my_output_2);
+    my_input2 = read_from_queue(myInputQueue2);
+    if (my_input2 != EOS) {
+      my_output2 = my_input2 + 1;
+      add_to_queue(myOutputQueue2, my_output2);
+    } else {
+      add_to_queue(myOutputQueue2, EOS);
     }
 
-    // STAGE THREE
-    my_input_3 = read_from_queue(myInputQueue_3);
-    if (my_input_3 >= 0) { ... }
-  } while (i_1 >= 0 || my_input_2 > 0 || my_input_3 > 0);
+    my_input3 = read_from_queue(myInputQueue3);
+    if (my_input3 != EOS) {
+      my_output3 = my_input3 * 2;
+      add_to_queue(myOutputQueue3, my_output3);
+    }
+  }
 }
 \end{lstlisting}
 
-\noindent 
-Here, the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| in \lstinline|main| are first \emph{lifted} into a new function, \lstinline|Pipe|. Each of those calls are then \emph{unfolded} in order to expose the \lstinline|do|-loops that they contain. These loops are then \emph{merged}, allowing all three stages to be executed within a single iteration. This avoids the first stage overflowing its output queue, and consequently, results in a program that is sequential but semantically equivalent to the original pthreaded program.
+%\noindent 
+%Here, the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| in \lstinline|main| are first \emph{lifted} into a new function, \lstinline|Pipe|. Each of those calls are then \emph{unfolded} in order to expose the \lstinline|for|-loops that they contain. These loops are then \emph{merged}, allowing all three stages to be executed within a single iteration. This avoids the first stage overflowing its output queue, and consequently, results in a program that is sequential but semantically equivalent to the original pthreaded program.
 
 %In order to preserve the 
 
@@ -345,9 +349,10 @@ Here, the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3
 %\lstinline{Stage1} function into the newly introduced loop at line 4. Therefore, in the newly introduced loop, \lstinline{Stage1} generates one element and puts it into its output queue, \lstinline{Stage2} consumes the element from this output queue, processes it and puts its output in its own output queue and then \lstinline{Stage3} consumes the element from this queue, processes it and puts its output into the final queue. This is repeated until \lstinline{Stage1} generates the terminating element (\lstinline{0} in this case).
 
 \paragraph{Program Shaping.}
-Despite correcting those errors introduced during Parallelism Removal, the code produced by the Code Repair stage may still contain artefacts from the original legacy parallelisation. In our running example, such artefacts include the queues between the stages.
+%Despite correcting those errors introduced during Parallelism Removal, t
+The code produced by the Code Repair stage may still contain artefacts from the original legacy parallelisation. In our running example, this includes the EOS token and intermediate queues.
 %
-In other examples artefacts can include custom-built representations of flat data structures, such as arrays, perhaps introduced for chunking purposes.
+In other examples, custom-built representations of flat data structures, e.g.\ arrays, introduced for chunking purposes may also be present.
 %
 These artefacts are redundant and could hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate residual artefacts of legacy parallelism, and to improve structure where such improvements make the code more amenable to the introduction of patterned parallelism.
 %
@@ -355,48 +360,30 @@ As in Code Repair, due to the potential complexity of this task, multiple transf
 %
 Each Program Shaping refactoring results in a program that is semantically equivalent to the one it transforms.
 %
-In our running example, we remove the now redundant queues in between the stages, the result of which can be found in Listing~\ref{lst:pipeClean}.
+The result of the Program Shaping stage on our running example can be found in Listing~\ref{lst:pipeClean}, where both the EOS token and intermediate queues have been removed (see Section~\ref{sec:refac:shaping} for details) and the individual stages lifted back into functions.
 
 %After the code repair step, the resulting code will be working sequential C/C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. In our example, these are the queues between stages of the pipeline computation, but in other examples it can also be custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible. For our example, the resulting code (\lstinline{main} and \lstinline{Stage2} functions) are given in Listing~\ref{lst:pipeClean}.
 
 \begin{lstlisting}[caption=Clean Sequential Simple Pipeline Code, frame=single, label=lst:pipeClean]
-struct PipeStruct {
-  // Input to pipeline
-  int* i_1;
-  // Output of pipeline
-  queue_t* myOutputQueue_3;
-  // Inter-stage temporary variables, used in loop-condition.
-  int my_output_1;
-  int my_output_2;
-};
+int S1(int i1) { ... }
 
-PipeStruct S1(PipeStruct arg) { ... }
+int S2(int my_output1) { ... }
 
-PipeStruct S2(PipeStruct arg) {
-  if (arg.my_output_1 >= 0) {
-    if (arg.my_output_1 > 0) arg.my_output_2 = arg.my_output_1 + 1;
-    else arg.my_output_2 = 0;
-  }
-  return arg;
-}
+void S3(int my_output2, queue_t* myOutputQueue3) { ... }
 
-PipeStruct S3(PipeStruct arg) { ... }
-
-void Pipe(void* a1, void* a2, void* a3) {
-  // STAGE ONE
-  int my_output_1, i_1 = MAXDATA;
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
+  int my_output1, i1;
   ...
-  do {
-    PipeStruct arg = PipeStruct {&i_1, myOutputQueue_3, &my_output_1, &my_output_2};
-    PipeStruct r = S3(S2(S1(arg)));
-    my_output_1 = r.my_output_1;
-    my_output_2 = r.my_output_2;
-  } while (i_1 >= 0 || my_output_1 > 0 || my_output_2 > 0);
+  for (i1 = MAXDATA ; i1 > 0; i1--) {
+    S3(S2(S1(i1)), myOutputQueue3);
+  }
 }
 \end{lstlisting}
 
-\noindent
-Here, calls to \lstinline|add_to_queue| and \lstinline|read_to_queue| are first \emph{unfolded}, allowing the specific read and write statements that represent the passing of data between stages to be matched and ultimately simplified to a single assignment statement between stages. The stages are then \emph{lifted} into the functions \lstinline|S1| (Line 11), \lstinline|S2| (Lines 13--19), and \lstinline|S3| (Line 21), and a \lstinline|struct| (Lines 1--9) generated to ensure that each stage is a single-input single-output function. The function composition on Line 32 is now in a form where pattern-based parallelism can be simply introduced, perhaps again by refactoring.
+%\noindent
+
+
+%Here, calls to \lstinline|add_to_queue| and \lstinline|read_from_queue| are first \emph{unfolded}, allowing the specific read and write statements that represent the passing of data between stages to be matched and ultimately simplified to a single assignment statement between stages. The stages are then \emph{lifted} into the functions \lstinline|S1| (Line 11), \lstinline|S2| (Lines 13--19), and \lstinline|S3| (Line 21), and a \lstinline|struct| (Lines 1--9) generated to ensure that each stage is a single-input single-output function. The function composition on Line 32 is now in a form where pattern-based parallelism can be simply introduced, perhaps again by refactoring.
 
 
 %\item \emph{Feature Cleanup.}  After the application of parallelism removal transformations, some artifacts of the legacy parallelisation may still remain in the code. These can be, for example, queues between stages of the pipeline computation or custom-build representations of flat data structures, such as arrays. These artifacts do not prevent the sequential version of application from running, but are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate these artifacts and restore the code in the state as close to the original sequential code from which legacy parallelisation was derived as is possible. This is, again, done using refactorings. As we are focusing on the \emph{farm} and \emph{pipeline} parallelism, the transformations we do is removing the queues of the pipeline stages (for the \emph{pipeline} parallelism) and flattening of data structures (in the case of \emph{farm} parallelism). The Matrix Multiplication code after feature cleanup is given below
@@ -439,9 +426,284 @@ The parts of the sequential code are replaced by calls to the functions from the
 This results in final, patterned parallel code that is semantically equivalent to the starting legacy-parallel code, but with much cleaner structure and simpler, higher-level code that allows easier maintainability, adaptivity and portability.
 %\end{itemize}
 
+
+\section{Pipeline Assumptions}
+\label{sec:assumptions}
+
+In this paper, we demonstrate our methodology on a subset of pipelines defined using pthreads. Whilst the refactorings described below apply only to this subset, they can be extended to facilitate a more general application of the restoration process.
+
+We assume that a valid pipeline (i.e.\ a pipeline that can be restored using the below refactorings) is linear, that all tasks are generated by the first stage, and that no subsequent stages will create or destroy tasks. Moreover, we assume that the first stage of the pipeline will produce an end-of-stream (EOS) token, which is propagated through the pipeline, and results in a stage halting when it is received as input.
+%
+A valid pipeline is assumed to be set up in a single function containing a sequence (or loop) of \lstinline|pthread_create| calls. For each \lstinline|pthread_create(ti,...)| call there must be a corresponding \lstinline|pthread_join(ti,...)| call in the same function.
+%
+%\begin{lstlisting}
+%t1 f(...) {
+%  ...
+%  pthread_create(t1,attr1,f1,args1);
+%  ...
+%  pthread_create(tn,attrn,fn,args2);
+%  ...
+%  pthread_join(t1,r1);
+%  ...
+%  pthread_join(tn,rn);
+%  ...
+%}
+%\end{lstlisting}
+%
+%\noindent
+We assume that each stage of a pipeline is run on a single thread. However, no assumptions are made regarding thread attributes, arguments passed to the function upon thread creation, or the second argument passed to \lstinline|pthread_join|.
+
+Tasks are sent between stages in pipelines via intermediate queues.
+%
+Each stage of a pipeline is assumed to have an input queue, $q_1$, and an output queue, $q_2$, given that $q_1 \neq q_2$ and the output queue of stage $i$ is the input queue of stage $i+1$.
+%
+Pipeline stages may only communicate via these intermediate queues; for simplicity, we assume that (intermediate) stages do not access global variables.
+
+Queues are assumed to be \emph{cyclic}. If the queue is full, and the implementation does not wait for an element to be read before adding a new element, it is assumed that the queue overwrites (unread) elements. We assume that queues use \lstinline|pthread_cond_wait|, \lstinline|pthread_cond_signal|, \lstinline|pthread_mutex_lock|, and \lstinline|pthread_mutex_unlock| operations only.
+%
+These restrictions are to ensure that, following Parallelism Elimination, the behaviour of the pipeline breaks in a consistent way. Any queue update functions should not be recursive.
+%
+Whilst we make no assumption on the size of queues, the interesting case is when queues are smaller than the total number of tasks passing through the pipeline.
+%An example of a function that adds elements to an intermediate queue can be found on Lines 12--17 in Listing~\ref{lst:pipeParRem}.
+
+Each stage of a valid pipeline is assumed to contain a loop that retrieves input and produces a modified version of it as output.
+%
+\begin{lstlisting}
+void *Stage2(void *arg) {
+  // SETUP
+  ...
+  for (input = read_from_queue(inputQueue);
+       valid(i) || input == EOS;
+       input = read_from_queue(inputQueue)) {
+    if (input != EOS) {
+      output = f(input);
+      add_to_queue(outputQueue, output);
+    } else {
+      add_to_queue(outputQueue, EOS);
+      break;
+    }
+  }
+}
+\end{lstlisting}
+%
+\noindent
+The \lstinline|for|-loop is assumed to read input from the stage's input queue for each iteration, where the test expression is a disjunction permitting both EOS token and valid inputs (for some definition of valid). The test expression may be simplified by treating the EOS as a valid input.
+%
+The body of the loop is assumed to comprise an \lstinline|if|-statement that checks for the EOS token, represented here by a preprocessor macro. When the input is not the EOS token, it is modified (Line 8) and added to the output queue (Line 9).
+%
+Conversely, when the input is the EOS token, it is propagated to the next stage (Line 11) and a \lstinline|break| statement used in order to halt the stage (Line 12). Should the EOS token be handled incorrectly and not halt the stage, due to our assumptions on the nature of the intermediate queues, the \lstinline|for|-loop will wait indefinitely for input that will never arrive. Whilst we permit the occurrence of \lstinline|break| statements only in the locations specified above, we assume that no part of the pipeline has \lstinline|continue| or \lstinline|goto| statements.
+
+The first stage differs in that the input is not retrieved from an input queue, but tasks are generated in a \lstinline|for|-loop. For example, in \lstinline|Stage1|,
+%
+\begin{lstlisting}
+void *Stage1(void *arg) {
+  t1 inputs[NINPUTS];
+  ...
+  for (i = 0; i<=NINPUTS; i++) {
+    if (i < NINPUTS) {
+      output = inputs[i];
+    } else {
+      output = EOS;
+    }
+    add_to_queue(outputQueue, output);
+  }
+}
+\end{lstlisting}
+%
+an array of inputs is iterated over and each element is sent to the second stage of the pipeline.
+%
+We assume that the \lstinline|for|-loop in the first stage is finite and that termination is controlled by the test expression and not through a conditional statement in the body of the loop.
+%
+Once all tasks have been generated, the first stage will emit an EOS token and no further iterations of the loop occur.
+
+
+%\begin{itemize}
+%\item Linear pipelines only.
+%\item We will assume the loop in the first stage of the pipeline has a finite (and obvious) bound. In examples where this does not hold (e.g.\ CB's example) we first transform infinite loops to conform.
+%\item The first stage of the pipeline will produce an EOS token, and all other stages will stop (via break statement) when that EOS token is received as input.
+%\item All tasks are generated by the first stage and no other stages will create or destroy tasks.
+%\item Sequence of pthread creates and pthread joins, as before.
+%\item Need to update the Stage definition. Describe how break and continue statements are transformed.
+%\item Intermediate queues as before.
+%\end{itemize}
+%
+%
+%\noindent
+%\hrulefill
+%
+%We consider implicit pipelines where setup consists of a sequence (or loop) of \lstinline|pthread_create| calls. For each \lstinline|pthread_create(ti,...)| call there must be a corresponding \lstinline|pthread_join(ti,...)| call in the same function.
+%%
+%\begin{lstlisting}
+%t1 f(...) {
+%  ...
+%  pthread_create(t1,attr1,f1,args1);
+%  ...
+%  pthread_create(tn,attrn,fn,args2);
+%  ...
+%  pthread_join(t1,r1);
+%  ...
+%  pthread_join(tn,rn);
+%  ...
+%}
+%\end{lstlisting}
+%%
+%\noindent
+%We assume that each stage of a pipeline is run on a single thread. We make no assumptions about thread attributes, arguments passed to the function upon thread creation, or the second argument passed to \lstinline|pthread_join|.
+%
+%Each stage of a pipeline is assumed to have an input queue, $q_1$, and an output queue, $q_2$, given that $q_1 \neq q_2$ and the output queue of stage $i$ is the input queue of stage $i+1$. Pipeline stages may only communicate via these intermediate queues. Queues are assumed to be \emph{cyclic}, where if the queue is full but elements continue to be added, the queue overwrites (unread) elements in the queue. We assume that queues use \lstinline|pthread_cond_wait|, \lstinline|pthread_cond_signal|, \lstinline|pthread_mutex_lock|, and \lstinline|pthread_mutex_unlock| operations only. These restrictions are to ensure that, following Parallelism Elimination, the behaviour of the pipeline breaks in a consistent way. Any queue update functions should not be recursive. Whilst we make no assumption on the size of queues, the interesting case is when the output queue is smaller than the total number of elements a stage produces. An example of a function that adds elements to an intermediate queue can be found on Lines 12--17 in Listing~\ref{lst:pipeParRem}.
+%
+%In addition to intermediate queues, each stage of the pipeline is assumed to contain a loop.
+%%
+%\begin{lstlisting}
+%void *Stagei(void *arg) {
+%  // setup
+%  ...
+%
+%  for (i; ...; i++) {
+%    //read from input queue
+%    input = read_from_queue(inputQueue);
+%    //do work
+%    output = f(input);
+%    //push to output queue
+%    add_to_queue(outputQueue, output);
+%  }
+%  return e;
+%}
+%\end{lstlisting}
+%%
+%\noindent
+%The body of the stage loop has three stages: \emph{i)} read from the input queue, \emph{ii)} do work on the input, and \emph{iii)} write any output to the output queue. For the purpose of illustration, we assume that the stages do not contain \lstinline|break|, \lstinline|continue|, or \lstinline|goto| statements, and they may not use any global variables. We will assume that queues are accessed via local variables in each stage.
+
+%\noindent
+%\hrulefill
+%
+%We consider implicit pipelines that have the form:
+%
+%\begin{itemize}
+%\item Within the same function (necessary?) there is a sequence of \lstinline|pthread_create| calls that spawn each of the stages of the pipeline. Following those \lstinline|pthread_create| calls (perhaps not \emph{immediately} following) there will be a sequence of \lstinline|pthread_join| calls.
+%\item Both \lstinline|pthread_create| and \lstinline|pthread_join| calls may be in a for loop, if desired.
+%\item A pipeline of $n$ stages will have $n$ threads, functions that represent the stages (get to those later). The thread attributes can be the same or differ, it does not matter. Arguments, we imagine, will be different, but I suppose do not strictly speaking need to be.
+%\item For each \lstinline|pthread_create(ti,...);| call, there must be a corresponding \lstinline|pthread_join(ti,...)| call. We make no restrictions on the second argument of \lstinline|pthread_join|.
+%\item Where both or either creation and join calls are in a loop, we will assume that the bound of the loop is the number of stages in the pipeline. The loops will iterate over all stages of the pipeline.
+%\end{itemize}
+%
+%\begin{lstlisting}
+%t1 f(...) {
+%  ...
+%  pthread_create(t1,attr1,f1,args1);
+%  ...
+%  pthread_create(tn,attrn,fn,args2);
+%  ...
+%  pthread_join(t1,r1);
+%  ...
+%  pthread_join(tn,rn);
+%  ...
+%}
+%\end{lstlisting}
+%
+%\noindent
+%Alternatively,
+%
+%\begin{lstlisting}
+%t1 f(...) {
+%  ...
+%  for (i; i < MAX_THREADS; i++) {
+%    pthread_create(ts[i],attr[i],fs[i],args[i]);
+%  }
+%  ...
+%  for (i; i < MAX_THREADS; i++) {
+%    pthread_join(ts[i],rs[i]);
+%  }
+%  ...
+%}
+%\end{lstlisting}
+%
+%\noindent
+%Communication between pipeline stages.
+%
+%\begin{itemize}
+%\item Pipeline stages may only communicate via intermediate queues. Each stage, $i$, has both an input queue, $q_1$, and an output queue, $q_2$, s.t.\ $q_1 \neq q_2$, and the input queue of stage $i+1$ is $q_2$.
+%\item We assume that queues have functions to add elements to a given queue and, similarly, to remove elements from a given queue. (Signatures.)
+%\item Intermediate queues are assumed to be cyclic in that if the queue is full and that things are added to that queue, it will overwrite unread elements in the queue rather than fail. In our example\dots
+%\item For the purposes of our demonstration, we assume that queues use only \lstinline|pthread_cond_wait|, \lstinline|pthread_cond_signal|, \lstinline|pthread_mutex_lock|, and \lstinline|pthread_mutex_unlock| pthread operations. (This is extensible, \&c.)
+%\item These functions may not be recursive. (It will get in the way of unfolding.)
+%\item We make no assumptions on the size of the queues. (But we are generally interested when they are small because breakages happen when an output queue is smaller than the number of elements a stage produces.)
+%\item Just point at the code we already have for this sort of thing; either that or lift it up here, and use the space elsewhere for something else.
+%\end{itemize}
+%
+%The pipeline stages themselves.
+%
+%\begin{itemize}
+%\item Each stage of the pipeline should contain a loop which effectively defines the behaviour of the stage itself. (Either for or while loops; maybe change them to for loops for ease and clarity.)
+%\item The body of the loop has three general stages:
+%  \begin{enumerate}
+%  \item fetch work,
+%  \item do work, and
+%  \item push result of work.
+%  \end{enumerate}
+%\item We will generally assume that the stages do not contain \lstinline|break|, \lstinline|continue|, and \lstinline|goto| statements. (I imagine that both \lstinline|break| and \lstinline|continue| statements could potentially be transformed by wrapping things in if statements and what-have-you, but we'll leave them for the time being. Wouldn't even know where to start with \lstinline|goto| statements.)
+%\item The statements must not use any global variables. (So that the only values that they can access are local, parameters, and those from their input queues.)
+%\item The stages must not be recursive.
+%\item Something about locking
+%\item What about return statements when it ends? Not a problem, I don't think. But will need to double check.
+%\end{itemize}
+%
+%\begin{lstlisting}
+%void *Stagei(void *arg) {
+%  // setup
+%
+%  for (i; ...; i++) {
+%    //read from input queue
+%    input = read_from_queue(inputQueue);
+%    //do work
+%    ...
+%    //push to output queue
+%    add_to_queue(outputQueue, output);
+%  }
+%  return e;
+%}
+%\end{lstlisting}
+
+%\noindent
+%\hrulefill
+%
+%\begin{enumerate}
+%    \item Syntax
+%        \begin{itemize}
+%            \item Stages in the pipeline shouldn't have return, continue, etc. statements
+%            \item each stage does not depend on variables bound in other stages or update free variables
+%            \item Something to say about the set of pthread operations.
+%            \item Communications are via mutex locks and conditional variables
+%            \item The queue adding behaviour is that it's cyclic (with the conditional used to block when full in the original pthreaded code). (This means that we have a very specific 'broken' behaviour from when we remove the pthread operations.)
+%            \item Each stage as a separate input and output queue s.t.\ the output queue of stage $i$ is the input queue of stage $i+1$.
+%            \item Each function stage has a loop that starts with dequeueing and ends with enqueueing.
+%            \item Show some form of template
+%        \end{itemize}
+%    \item Parallelism Elimination
+%    \item Code Repair (Merge Loops)
+%        \begin{itemize}
+%        \item Sequence of for or while loops s.t.\ all of the loops are of the same kind. (So, no, e.g., while then for then while) (assume transformation into the same kind prior to this refactoring)
+%        \item Something about weakening of while-loop conditions (change to for-loops?)
+%        \item Infinite (really termination-obfuscated; look for break statements?) to finite loops.
+%        \end{itemize}
+%    \item Program Shaping
+%        \begin{enumerate}
+%            \item Remove Intermediate Queues
+%                \begin{itemize}
+%                    \item The read-write-update stuff seems okay
+%                \end{itemize}
+%            \item Merge Arguments
+%                \begin{itemize}
+%                    \item Name collisions ($\alpha$-renaming \&c.)
+%                \end{itemize}
+%        \end{enumerate}
+%\end{enumerate}
+
 \section{Restoration Transformations} \label{sec:refactoring}
 
-We propose a series of program transformations to facilitate the restoration of C programs that have been previously parallelised using low-level pthread parallelism techniques. The following transformations are grouped according to the stages in Section~\ref{sec:methodology} in which they are used.
+%We propose a series of program transformations to facilitate the restoration of C programs that have been previously parallelised using low-level pthread parallelism techniques. 
+%
+The following transformations are grouped according to the stages in Section~\ref{sec:methodology} and all are apply to C programs that adhere to the assumptions in Section~\ref{sec:assumptions}.
 %
 In addition to the following, standard transformations may also facilitate the restoration process. For instance, the transformation to \emph{unfold} a function definition~\cite{darlington77} is used in both Code Repair and Shaping stages; e.g.\ in the former, it allows loops to be merged, and in the latter, it allows the elimination of intermediate queues. The \emph{extract method}~\cite{DBLP:books/daglib/0019908} transformation can be similarly used to lift a pipeline into a self-contained function, or to lift its individual stages (back) into separate functions.
 
@@ -452,14 +714,16 @@ In addition to the following, standard transformations may also facilitate the r
 \subsection{Parallelism Elimination}
 \label{sec:refac:elimination}
 
-Parallelism Elimination comprises a single composite transformation that either removes or transforms pthread operations. As noted in Section~\ref{sec:methodology}, Parallelism Elimination, and by extension this transformation, does \emph{not} guarantee that the result of the transformation will be semantically equivalent to the transformed program. Parallelism Elimination effects the following transformations.
+Parallelism Elimination comprises a single composite transformation that either removes or transforms pthread operations. As noted in Section~\ref{sec:methodology}, Parallelism Elimination
+%, and by extension this transformation, 
+does \emph{not} guarantee that the result of the transformation will be semantically equivalent to the transformed program. It is applied to the functions that are identified as part of the valid pipeline and effects the following transformations.
 %
 \begin{itemize}
-\item Removes \lstinline|#include <pthread>|.
+\item Removes \lstinline|#include <pthread>| when all pthread operations within the file are found within the functions identified as part of the valid pipeline.
 %\item Removes all mutex (\lstinline|pthread_mutex_*|), condition (\lstinline|pthread_cond_*|), and attribute (\lstinline|pthread_attr_*|) operations.
-\item Removes all pthread operations aside from calls to both \lstinline|pthread_join| and \lstinline|pthread_create|.
-\item Removes all variable declarations whose types are defined as part of the pthread library, excepting \lstinline|pthread_t| declarations.
-\item Declarations in the form \lstinline|pthread_t t;| are transformed into \lstinline|void* t;|.
+\item Removes all pthread operations within the pipeline functions aside from calls to both \lstinline|pthread_join| and \lstinline|pthread_create|.
+\item Removes all variable declarations whose types are defined as part of the pthread library, excepting \lstinline|pthread_t|. This includes global declarations when those variables occur solely within the identified pipeline functions.
+\item Declarations in the form \lstinline|pthread_t t;| are transformed into \lstinline|void* t;|. As above, in the case where such declarations are global, the variables may occur only in the pipeline functions.
 \item Calls to \lstinline|pthread_create| of the form,
 %
 \begin{lstlisting}
@@ -475,7 +739,7 @@ t = f(x);
 \noindent
 Recall that Parallelism Elimination converts the type of \lstinline|pthread_t| variables to \lstinline|void*| variables of the same name(s), and that \lstinline|pthread_create| requires that \lstinline|f| returns a value of type \lstinline|void*|.
 %
-\item Calls to \lstinline|pthread_join| are transformed according to whether the second argument is \lstinline|NULL|. When the second argument is \emph{not} \lstinline|NULL|, e.g.\ \lstinline|pthread_join(t,x)|, the join operation is transformed into the form \lstinline|x = t|. Otherwise, when the second argument is \lstinline|NULL|, the call to \lstinline|pthread_create| is removed.
+\item Calls to \lstinline|pthread_join| are transformed according to whether the second argument is \lstinline|NULL|. When the second argument is \emph{not} \lstinline|NULL|, e.g.\ \lstinline|pthread_join(t,x)|, the join operation is transformed into the form \lstinline|x = t|. Otherwise, the call to \lstinline|pthread_join| is removed.
 %  
 \item In cases where a call to \lstinline|pthread_join| or \lstinline|pthread_create| forms the right-hand-side of an assignment statement, e.g.
 %
@@ -483,7 +747,7 @@ Recall that Parallelism Elimination converts the type of \lstinline|pthread_t| v
 r = pthread_join(t,x);
 \end{lstlisting}
 %
-in addition to the transformation of the pthread operation, an assignment statement is inserted where the variable being assigned, \lstinline|r| in the above example, is assigned the value of a successful call to the original pthread operation, here \lstinline|pthread_join| and \lstinline|0|. In the above example, the code resulting from the transformation is:
+in addition to the transformation of the pthread operation, an assignment statement is inserted where the variable being assigned, \lstinline|r|, is assigned the value of a successful call to the original pthread operation, here \lstinline|pthread_join| and \lstinline|0|. The assignments resulting from the transformation is:
 %
 \begin{lstlisting}
 r = 0;
@@ -491,8 +755,8 @@ x = t;
 \end{lstlisting}
 
  
-\item Any \texttt{for}-loop whose body contains no statements following the removal of a pthread operation will itself be removed.
-\item Any \texttt{if}-statement with a branch whose body contains no statements following the removal of a pthread operation will be transformed to have only the other branch, or itself removed, if no such branch exists. For instance, given the \texttt{for}-loop from the synthetic pipeline example in Listing~\ref{lst:simplePipe},
+\item Any \lstinline{for}-loop whose body contains no statements following the removal of a pthread operation will itself be removed.
+\item Any \lstinline{if}-statement with a branch whose body contains no statements following the removal of a pthread operation will be transformed to have only the other branch, or itself removed, if no such branch exists. For instance, given the \lstinline{for}-loop from the synthetic pipeline example in Listing~\ref{lst:simplePipe},
 %
 \begin{lstlisting}[firstnumber=8]
 for (i = 0; i < NRSTAGES; i++)
@@ -509,7 +773,19 @@ since the second argument to \lstinline|pthread_join| is \lstinline|NULL|, the j
 \subsection{Code Repair}
 \label{sec:refac:repair}
 
-In addition to \emph{unfolding} and \emph{extract method} refactorings, the merging of loops is a key transformation of the Code Repair stage when restoring pipelines. In order to avoid the overheads involved with thread creation, individual stages of a pipeline may loop until a termination token or condition is met. Merging the loops across pipeline stages from which pthreads have been eliminated using the transformations in Section~\ref{sec:refac:elimination} can be necessary to avoid overflowing any buffers or queues in between pipeline stages, thus restoring the original semantic behaviour of the code. Here, we describe only the merging of \lstinline{do}-loops, but a similar approach can be used to merge, e.g., \lstinline{for}-loops.
+In addition to \emph{unfolding} and \emph{extract method} refactorings, the merging of loops is a key transformation of the Code Repair stage when restoring valid pipelines. 
+%
+%In the form of implicit pipelines we're considering in this paper,
+%
+Parallelism Elimination can result in one or more intermediate queues to overwrite elements before they can be read.
+%
+%In the case where a stage of the pipeline produces more output than the maximum capacity of the output queue, the queue will overwrite elements before they are read by the subsequent stage in the pipeline due to effects of Parallelism Elimination.
+%
+Merging the queues of all pipeline stages ensures that no queue overflows.
+%
+%In order to avoid the overheads involved with thread creation, individual stages of a pipeline may loop until a termination token or condition is met. Merging the loops across pipeline stages from which pthreads have been eliminated using the transformations in Section~\ref{sec:refac:elimination} can be necessary to avoid overflowing any buffers or queues in between pipeline stages, thus restoring the original semantic behaviour of the code.
+%
+Whilst we only describe the merging of \lstinline{for}-loops, a similar approach can be used to merge equivalent loop kinds.
 
 %\paragraph{Merge \texttt{for}-loops}
 %
@@ -519,9 +795,9 @@ In addition to \emph{unfolding} and \emph{extract method} refactorings, the merg
 
 % We don't use merge for-loops at all any more?
 
-\paragraph{Merge \lstinline{do}-loops.}
+\paragraph{Merge \lstinline{for}-loops.}
 
-A sequence of $n$ \lstinline{do}-loops,
+A sequence of $n$ \lstinline{for}-loops,
 %%
 %\begin{lstlisting}
 %s1;
@@ -543,80 +819,144 @@ A sequence of $n$ \lstinline{do}-loops,
 %\end{lstlisting}
 %%
 %\noindent
-in the same compound statement can be merged such that the result is a single loop containing the bodies of the original loops in the same order that they appeared in the original source code. We note that any statements that appear in between loops in the original code, must be commutative with respect to any preceding loops; i.e.\ it must be possible to swap the ordering of the statements and preceding loops without changing the behaviour of the program.
+in the same compound statement can be merged such that the result is a single loop containing the bodies of the original loops in the same order that they appeared in the original sequence. Any statements that appear in between loops in the original code, must be commutative with respect to all preceding loops; i.e.\ it must be possible to swap the ordering of the statements and preceding loops without changing the behaviour of the program.
 
-To illustrate this transformation we use the below code, derived from the synthetic simple pipeline example in Section~\ref{sec:methodology}.
+%To illustrate this transformation we use the below code, derived from the synthetic simple pipeline example in Section~\ref{sec:methodology}.
 %
 \begin{lstlisting}[caption=Intermediate Code Repair Stage for Simple Pipeline Example, label=lst:refac:repair:before, frame=single]
 void Pipe(void* a1, void* a2, void* a3) {
-  // STAGE ONE
-  int my_output_1, i_1 = MAXDATA;
+  int my_output1, i1;
   ...
-  do {
-    ...
-  } while(i_1>=0);
+  for (i1 = MAXDATA ; i1>=0; i1--) {
+    if (i1 > 0) {
+      my_output1 = ...;
+    } else {
+      my_output1 = EOS;
+    }
+    add_to_queue(myOutputQueue1, my_output1);
+  }
 
-  // STAGE TWO
-  int my_input_2, my_output_2;
+  int my_input2, my_output2;
   ...
-  do {
-    my_input_2 = read_from_queue(myInputQueue_2);
-    ...
-  } while (my_input_2>0);
+  for (my_input2 = read_from_queue(myInputQueue2);
+       my_input2>0 || my_input2 == EOS;
+       my_input2 = read_from_queue(myInputQueue2)) {
+    if (my_input2 != EOS) {
+      ...
+    } else {
+      add_to_queue(myOutputQueue2, EOS);
+    }
+  }
 
-  // STAGE THREE
-  int my_input_3, my_output_3;
+  int my_input3, my_output3;
   ...
-  do {
-    my_input_3 = read_from_queue(myInputQueue_3);
-    ...
-  } while (my_input_3>0);
+  for (my_input3 = read_from_queue(myInputQueue3);
+       my_input3>0 || my_input3 == EOS;
+       my_input3 = read_from_queue(myInputQueue3)) {
+    if (my_input3 != EOS) {
+      ...
+    } else {
+      break;
+    }
+  }
 }
 \end{lstlisting}
 %
 \noindent
-This represents the example following the Parallelism Elimination stage (Listing~\ref{lst:pipeParRem}), and where the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| have been lifted into the function \lstinline|Pipe| using \emph{extract method} and then \emph{unfolded}. Since the statements in between the above loops consist solely of declarations and assignment statements and can be safely executed prior to the first and second loops, it is possible to merge these loops.
+Listing~\ref{lst:refac:repair:before} builds on the example in Listing~\ref{lst:pipeParRem}, where the calls to \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| have been lifted into the function \lstinline|Pipe| using \emph{extract method} and then \emph{unfolded}.
 %
-\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}), label=lst:refac:repair:after, frame=single]
-void Pipe(void* a1, void* a2, void* a3) {
-  int my_output_1, i_1 = MAXDATA;
+It is possible to merge all three loops since the statements in between the loops can be safely executed prior to the first and second loops.
+%
+\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}, label=lst:refac:repair:after, frame=single]
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
+  int my_output1, i1;
   ...
-  do {
-    // STAGE ONE
-    if (i_1 >= -1) {
+  for (i1 = MAXDATA ; i1>=0; i1--) {
+    if (i1 > 0) {
+      my_output1 = ...;
+    } else {
+      my_output1 = EOS;
+    }
+    add_to_queue(myOutputQueue1, my_output1);
+
+    my_input2 = read_from_queue(myInputQueue2);
+    if (my_input2 != EOS) {
       ...
+    } else {
+      add_to_queue(myOutputQueue2, EOS);
     }
 
-    // STAGE TWO
-    my_input_2 = read_from_queue(myInputQueue_2);
-    if (my_input_2 >= 0) {
+    my_input3 = read_from_queue(myInputQueue3);
+    if (my_input3 != EOS) {
       ...
     }
-
-    // STAGE THREE
-    my_input_3 = read_from_queue(myInputQueue_3);
-    if (my_input_3 >= 0) {
-      ...
-    }
-  } while (i_1 >=0 || my_input_2 > 0 || my_input_3 > 0);
+  }
 }
+
 \end{lstlisting}
 %
-The bounding condition of the merged loop is formed of the disjunction of the conditions of the original loops. Similarly, the body of the merged loop comprises the bodies of the original loops wrapped in \lstinline{if}-statements. The condition of one of these \lstinline{if}-statements is the \emph{weakened} condition of the respective original \lstinline{do}-loop; e.g.\ the condition \lstinline|my_input_2>0| above is weakened to \lstinline|my_input_2>=0|. This weakening is necessary, since the body of a \lstinline{do}-loop is executed before the bounding condition is checked.
+Since we assume that new tasks are only produced by the first stage and that all subsequent stages neither generate nor destroy tasks, it follows that the number of iterations for the first loop will be equal to the number of iterations for subsequent loops in the original pipeline.
 %
-% Someone is going to ask about weakening rules and how is 'weakening' defined for all the things. Annoying.
+Consequently, the initialisation statement, test expression, and iteration expression of the merged loop will be those of the first loop; here, \lstinline|i1 = MAXDATA|, \lstinline|i1>=-1|, and \lstinline|i1--|, respectively.
 %
-Moreover, because the loop body is guaranteed to execute once, it is possible that a variable used in the bounding condition may be declared outside of the loop, but only initialised within it. For example, in the second and third stages above, neither \lstinline|my_input_2| nor \lstinline|my_input_3| are initialised before the assignment \emph{inside} the body of their respective loops (Lines 15 \& 23, Listing~\ref{lst:refac:repair:before}). In order to merge these loops such that the second and third stages will execute, we move the aforementioned assignment statements outside of the introduced \lstinline{if}-statement around the loop body (Lines 12 \& 18, Listing~\ref{lst:refac:repair:after}). Such assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop.
+The bodies of the individual loops are included in the same order as the original loops themselves. Since the merged loop uses its initialisation statement, test expression, and iteration expression, the body of the first loop is included unchanged.
 %
-% 'assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop' is to stop us from lifting too much of the code out of the if-statement; you only want the bare minimum.
+Bodies of subsequent loops, however, are preceded by their update statement. For example, the body of the second loop is preceded by the assignment to \lstinline|my_input2| on Line 12 in Listing~\ref{lst:refac:repair:after} which is taken from the update statement on Line 18 in Listing~\ref{lst:refac:repair:after}. This ensures that the input queue for each stage is read from only when a task has been added to that queue by the preceding stage.
 %
-% Question: what happens when you move something outside of the body of the if statement and the loop still allows you to run that bit of code when it wouldn't normally (according to that loop bound). Maybe it would've been better to simply convert these to for-loops after all...
+In addition to the inclusion of the update expression, the \lstinline|break| statements from the original \lstinline|for|-loops are removed, leaving the propagation of the EOS token in all but the final stage. In the final stage of our pipeline (Lines 19--22) we remove the entire \lstinline|else| branch in Listing~\ref{lst:refac:repair:after} since it contains only the \lstinline|break| statement on Line 35 in Listing~\ref{lst:refac:repair:before}. Whilst the removal of these \lstinline|break| statements is not strictly necessary, since they will only be evaluated when the first stage emits an EOS token once all other tasks have been processed, they are removed because they are redundant now that the termination of the merged loop is controlled by the first stage of the pipeline, which will terminate after generating the EOS token.
+
+
+%However, the bodies of the subsequent loops are included s.t.\ they are enclosed in an \lstinline|if|-statement and preceded by an assignment statement. The condition of a given \lstinline|if|-statement is the text expression of the respective loop. \textcolor{blue}{There's a point here about how because we assume that all tasks will flow through as an assumption it stands that the condition will not prematurely halt the pipeline, and so we don't need the }
+
+%However, the bodies of the subsequent loops are included by wrapping them in an \lstinline|if|-statement, whose condition is taken from the termination expression of the original loop. Additionally, since we do not include the update expressions  For example, the loop over Lines 16--24 in Listing~\ref{lst:refac:repair:before} representing the second stage of the pipeline is transformed into the statements over Lines 12--19 of Listing~\ref{lst:refac:repair:after}.
+
+
+%\noindent
+%\hrulefill
+%%
+%\begin{itemize}
+%\item The first stage remains the same. This is possible because we're using the initialisation statement, test expression, and update statement of the first loop for the merged loop. Since it also contains no break, continue, or goto statements by assumption, we are entirely safe here.
+%\item Subsequent stages are wrapped in an if statement to ensure that they only fire when they are supposed to. (I wonder if this is actually redundant because all tasks must be dealt with so they all have the same number of iterations?) The condition for the if statement is taken from the condition for the relevant loop.
+%\item You can't put the calls to read from queue in the initialisation statement because the queues will just return gibberish. Similarly, you can't use the calls in the iteration expression because it will return gibberish on the first two iterations for the third stage (in this specific example). Since you actually only need to read from the queue when you know that the previous stage has pushed something to the queue, it makes sense that you put the iteration expression of the loop before the if statement.
+%\item The break statements in the subsequent stages will be simply be removed. We leave the statements that propagate the EOS token because I believe we'll be needing them later when converting\dots
+%\item Actually, I'm not so sure. The problem we have here is that you need to get rid of the EOS at some point as it's not an output of the pipeline itself. For TBB, the EOS is a call to \lstinline|stop()| in the first stage of the pipeline. I wonder, then, if we could get rid of the EOS parts of the other stages and put a break in where we emit the EOS itself in the first stage? Then, we could convert the sole remaining break statement to \lstinline|stop|. The difficulty with this, however is whether the break would work when you lift the first stage into a function... Something to check, I think. Also, we should check how we're going from sequential code to TBB to make sure we're not missing something obvious. Ah, all we did between pth.8 and pth.9 was add an else onto the first if so I think we could probably just get rid of it entirely, adjusting the loop condition accordingly to get rid of the iteration with the EOS in it. Don't know what's best.
+%\end{itemize}
 %
-% Converting a do-loop to a for loop might be the better approach.
+%\noindent
+%\hrulefill
+
+
+%initializationStatement; testExpression; updateStatement
+
+%\begin{itemize}
+%\item The initial expression for the for loop doesn't matter; it's going to be the initial expression for the first loop as that is what sets everything off, and since the other `input' arguments aren't going to be initialised yet, it would be foolish to do so.
+%\item Assumption here that the first loop represents a generator. It will stop looping if it stops/hangs at one point. It shouldn't hang because we've removed the pthread stuff; ah, but what if that pthread stuff is outside of the pipeline? Reading from a file will just continue returning EOF, I think, so that's not a problem. So, we make it so that the update function for the first loop will \emph{always} succeed, it will not fail (i.e. error out), and it will not wait on a resource.
+%\item The idea is that the first for loop pertains to the first stage of the pipeline; that's obvious enough.
+%\item Note that you \emph{cannot} put the iterators of later loops in the merged loop iterator because it will continue to loop infinitely (because there's no waiting when the loop is full/empty). You \emph{could} adjust the read operation, which we will suggest, but that should probably be an additional/separate refactoring or transformation, rather, which I don't want to go into here, because that's just inviting problems. Also, there's not much point because our end goal \emph{isn't} sequentialisation, but rather updating the parallelism so we're getting rid of the intermediate queues entirely.
+%\item The first stage of the pipeline must represent a bound on the number of iterations, because otherwise the nature of the intermediate queues will continue to cycle through nonsense elements. (which is what causes the errors). So, let's say that the number of iterations of the first loop is a bound on those that follow. This is a sensible assumption because you're not going to get out more than you put in... or you could do, if your successive stages also generate input for the pipeline by, e.g., duplicating their input. I think we have to assume that for each stage barring the initial stage of the pipeline, you have one input and one output, and where the initial stage only has a single output. (All of this is per iteration.)
+%\item I think this is an okay assumption because we're converting this into a fairly standard TBB pipeline. (I wonder if you can create a TBB pipeline where a stage may produce more output onto the output queue. It seems that you can't: `However, Filter objects in TBB can only take a single input and produce a single output.` Others have gotten around this using nested pipelines. See `Expressing Pipeline Parallelism Using TBB Constructs')
+%\item This could be extended later to consider what happens when you have stages that are allowed to either remove inputs or add inputs to the stream. I think you'd have to assume some sort of adjustment to the intermediate queues, so that they return an empty operator and you would stop there.
+%\item Alternatively, you might want to have it so that there are loops for each of the successive stages within the inner loops, but then that might cause a problem too what with overflow \&c. so you'd want to have a flat loop that you can easily deal with.
+%\item We assume linear pipelines only. Intermediate queues may be of different sizes, but the number of tasks passed through the pipeline should be constant (i.e.\ each task generated by the first stage of the pipeline must travel through each stage of the pipeline and be introduced to the output queue).
+%\end{itemize}
+
+
 %
-Variables are renamed in the bodies of the loops as necessary.
-%
-%\textcolor{blue}{What if one variable (e.g.\ some iterator \lstinline|i|) is reused between loops? Note that any (re)declarations of variables (between stages) would have been dealt with at the unfolding step.}
+%The bounding condition of the merged loop is formed of the disjunction of the conditions of the original loops. Similarly, the body of the merged loop comprises the bodies of the original loops wrapped in \lstinline{if}-statements. The condition of one of these \lstinline{if}-statements is the \emph{weakened} condition of the respective original \lstinline{do}-loop; e.g.\ the condition \lstinline|my_input_2>0| above is weakened to \lstinline|my_input_2>=0|. This weakening is necessary, since the body of a \lstinline{do}-loop is executed before the bounding condition is checked.
+%%
+%% Someone is going to ask about weakening rules and how is 'weakening' defined for all the things. Annoying.
+%%
+%Moreover, because the loop body is guaranteed to execute once, it is possible that a variable used in the bounding condition may be declared outside of the loop, but only initialised within it. For example, in the second and third stages above, neither \lstinline|my_input_2| nor \lstinline|my_input_3| are initialised before the assignment \emph{inside} the body of their respective loops (Lines 15 \& 23, Listing~\ref{lst:refac:repair:before}). In order to merge these loops such that the second and third stages will execute, we move the aforementioned assignment statements outside of the introduced \lstinline{if}-statement around the loop body (Lines 12 \& 18, Listing~\ref{lst:refac:repair:after}). Such assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop.
+%%
+%% 'assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop' is to stop us from lifting too much of the code out of the if-statement; you only want the bare minimum.
+%%
+%% Question: what happens when you move something outside of the body of the if statement and the loop still allows you to run that bit of code when it wouldn't normally (according to that loop bound). Maybe it would've been better to simply convert these to for-loops after all...
+%%
+%% Converting a do-loop to a for loop might be the better approach.
+%%
+%Variables are renamed in the bodies of the loops as necessary.
+%%
+%%\textcolor{blue}{What if one variable (e.g.\ some iterator \lstinline|i|) is reused between loops? Note that any (re)declarations of variables (between stages) would have been dealt with at the unfolding step.}
 
 % Note to self: seeing as this changes the behaviour of the program; how would you even account for all the possible side-conditions (formally)? You'd need to define the desired behaviour that you'd end up with. You'd probably need to be very restrictive here because otherwise you could end up allowing lots of weird behaviours; the goal of this is to make the behaviour more sensible, so... yes, you could define your transformation to do anything you desired but that doesn't necessarily a useful transformation make.
 
@@ -626,81 +966,118 @@ Variables are renamed in the bodies of the loops as necessary.
 % I am concerned that we're spreading ourselves too generally. I fell like we should have constrained ourselves to pipelines and farms that conform to specific requirements/assumptions. Then we could always say that the requirements/assumptions can be weakened accordingly.
 
 
+%\textcolor{red}{Note that we really need to eliminate the EOS token prior to removing the intermediate queues. The problem arises because we need to pair \lstinline{add_to_queue} operations with \lstinline|read_from_queue| operations and that only works at present because we've only \emph{one} of each at the end and beginning of each unfurled stage. It should really be separate from Merge Loops.}
+
+
 \subsection{Program Shaping.}
 \label{sec:refac:shaping}
 
-Program Shaping represents the broadest stage in the process and presents the programmer with the largest range of choices in terms of transformations that may be effected. In addition to \emph{unfolding} definitions and creating new functions via \emph{extract method}, other standard transformations may be applied, e.g.\ \emph{dead-code elimination}~\cite{Kennedy:DeadCodeElimination}, in order to improve or simplify the structure of the code. In order to remove aspects of the code that represent optimisations enacted for the legacy parallelisation, both existing and novel transformations may be necessary. Novel transformations may include the unchunking of data, the removal intermediate, and now redundant, queues between stages, and a tupling (and potential localisation) of arguments to present transformations that introduce algebraic skeletons with a simple composition of single-parameter functions. In line with our running example, we propose transformations to remove intermediate queues, and to merge arguments.
+Program Shaping represents the broadest stage in the process and presents the programmer with the largest range of choices in terms of transformations that may be effected. In addition to \emph{unfolding} definitions and creating new functions via \emph{extract method}, other standard transformations may be applied, e.g.\ \emph{dead-code elimination}~\cite{Kennedy:DeadCodeElimination}, in order to improve or simplify the structure of the code. In order to remove aspects of the code that represent optimisations enacted for the legacy parallelisation, both existing and novel transformations may be necessary. Novel transformations may include the unchunking of data, the removal intermediate, and now redundant, queues between stages, and a removal of the EOS token. In line with our running example, we propose transformations to remove EOS tokens and to remove intermediate queues.
 
-\paragraph{Remove Intermediate Queues.}
+%and a tupling (and potential localisation) of arguments to present transformations that introduce algebraic skeletons with a simple composition of single-parameter functions. In line with our running example, we propose transformations to remove intermediate queues, and to merge arguments.
 
-In a pthreaded pipeline, passing the result of a stage to the next can involve intermediary queues. Once the parallelism from the pipeline has been eliminated and the code repaired, so too can these queues be removed.
+\paragraph{Remove EOS Token from Merged Loops.}
+
+Intuitively, we assume that Remove EOS Token from Merged Loops applies to the result of Merge Loops. Since termination of all stages is controlled solely by the merged loop, the EOS token is redundant and can be removed to that the resulting restored pipeline doesn't perform unnecessary work.
 %
-%Removing these queues not only simplifies the structure of the code, but facilitates the introduction of a skeleton implementation since such implementations handle their own queuing.
+By our assumption, at the beginning of the \lstinline|for|-loop, there is an \lstinline|if|-statement that determines whether the iterator being generated by the first stage is genuine output or the EOS token. This \lstinline|if|-statement is replaced by the branch of the \lstinline|if|-statement that produces genuine output. Additionally, the text expression of the merged loop is replaced by the condition of the \lstinline|if|-statement being removed. This results in the merged loop executing one fewer iteration and the first stage of the (now-removed) pipeline no longer adding the EOS token to its output queue.
 %
-We remove these intermediate queues by inspecting, matching, and transforming \emph{read}, \emph{write}, and \emph{update} operations pertaining to those queues.
-%
-In our recurring example we being this process following the Code Repair stage, and having \emph{unfolded} \lstinline|add_to_queue| and \lstinline|read_to_queue| operations for \emph{intermediate queues only}; note that the output queue operation on Line 35 has not been unfolded.
-%
-\begin{lstlisting}[frame=single]
-void Pipe(void* a1, void* a2, void* a3) {
-  int my_output_1, i_1 = MAXDATA;
-  
-  pipeline_stage_queues_t *myQueues_1 = (pipeline_stage_queues_t *)a1;
-  queue_t *myOutputQueue_1 = myQueues_1->outputQueue;
+For all other stages of the pipeline, we replace each stage's \lstinline|if|-statement with their output branches, thus removing the EOS token behaviour.
+
+\begin{lstlisting}[caption=Following application of Remove EOS Token from Merged Loops to Listing~\ref{lst:refac:repair:after}, label=lst:refac:removeEOS]
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
+  int my_output1, i1;
   ...
-  do {
-    // STAGE ONE
-    if (i_1 >= 0) { 
-      ...
-      myOutputQueue_1->elements[myOutputQueue_1->addTo] = my_output_1;
-      myOutputQueue_1->addTo = (myOutputQueue_1->addTo + 1) % myOutputQueue_1->capacity;
-      myOutputQueue_1->nr_elements++;
-    }
+  for (i1 = MAXDATA ; i1 > 0; i1--) {
+    my_output1 = ...;
+    add_to_queue(myOutputQueue1, my_output1);
 
-    // STAGE TWO
-    my_input_2 = myInputQueue_2->elements[myInputQueue_2->readFrom];
-    myInputQueue_2->nr_elements--;
-    myInputQueue_2->readFrom = (myInputQueue_2->readFrom + 1) % myInputQueue_2->capacity;
+    my_input2 = read_from_queue(myInputQueue2);
+    my_output2 = ...;
+    add_to_queue(myOutputQueue2, my_output2);
 
-    if (my_input_2 >= 0) {
-      ...
-      myOutputQueue_2->elements[myOutputQueue_2->addTo] = my_output_2;
-      myOutputQueue_2->addTo = (myOutputQueue_2->addTo + 1) % myOutputQueue_2->capacity;
-      myOutputQueue_2->nr_elements++;
-    }
-    
-    // STAGE THREE
-    my_input_3 = myInputQueue_3->elements[myInputQueue_3->readFrom];
-    myInputQueue_3->nr_elements--;
-    myInputQueue_3->readFrom = (myInputQueue_3->readFrom + 1) % myInputQueue_3->capacity;
-    
-    if (my_input_3 >= 0) {
-      ...
-      add_to_queue(myOutputQueue_3, my_output_3);
-    }
-  } while (i_1 >= 0 || my_input_2 > 0 || my_input_3 > 0);
+    my_input3 = read_from_queue(myInputQueue3);
+    my_output3 = ...;
+    add_to_queue(myOutputQueue3, my_output3);
+  }
 }
 \end{lstlisting}
 %
-A variable is \emph{read} from when that variable occurs in a statement and that variable is not being \emph{updated}; e.g.\ \lstinline|capacity| on Line 142 above.
+\noindent
+Listing~\ref{lst:refac:removeEOS} gives the result of applying Remove EOS Token from Merged Loops to the code in Listing~\ref{lst:refac:repair:after}. Here, the original test expression of the merged loop, \lstinline|i1>=0| (Line 4 Listing~\ref{lst:refac:removeEOS}), has been replaced with the condition of the \lstinline|if|-statement from the first stage of the pipeline, \lstinline|i1>0| (Line 5, Listing~\ref{lst:refac:removeEOS}). That \lstinline|if|-statement has itself been replaced by its true branch. The \lstinline|if|-statements for the other two stages (Lines 13--17 and 20--22, Listing~\ref{lst:refac:removeEOS}) have similarly been replaced by their true branches, since their false branches handle the EOS token.
+%Consequently, \lstinline|Pipe| no longer contains any \lstinline|break| statements in Listing~\ref{lst:refac:removeEOS}.
+
+%\begin{itemize}
+%\item The EOS token will be replaced with the TBB \lstinline|stop| function and having the EOS token still here will muck up Remove Intermediate Queues because we have multiple points where you add to the output queue. To solve this we remove the EOS token (after all, we don't need it now).
+%\item Intuitively, we assume that we have the result of Merge Loops. So, we have a for-loop and we want to remove the EOS clause for the first stage that's embedded in the for loop.
+%\item Meaning that we assume that at the start of our for loop, there is an if statement that determines whether the iterator is output or EOS token, and we remove the EOS token bit.
+%\item We are being conservative here, but we will need to change the number of iterations that the merged loop does because otherwise we will end up with the final iteration being gibberish.
+%\item Transformations:
+%  \begin{enumerate}
+%  \item Replace the test expression of the loop with the condition of the if statement.
+%  \item Replace the if statement with the body of the output (i.e.\ non EOS) branch only.
+%  \item For other stages of the (sequentialised) pipeline, and because we assume that each stage has an if-statement in it, we can simply replace those if statements with the non-EOS token branch.
+%  \end{enumerate}
+%\end{itemize}
+
+\paragraph{Remove Intermediate Queues.}
+
+%In a pthreaded pipeline, passing the result of a stage to the next can involve intermediary queues. Once the parallelism from the pipeline has been eliminated and the code repaired, so too can these queues be removed.
+%
+%Removing these queues not only simplifies the structure of the code, but facilitates the introduction of a skeleton implementation since such implementations handle their own queuing.
+%
+
+Following the application of Merge Loops the intermediate queues become redundant.
+%
+They can be removed by inspecting, matching, and transforming \emph{read}, \emph{write}, and \emph{update} operations pertaining to those queues.
+%
+In our recurring example we begin this process having removed the EOS token, and having \emph{unfolded} both \lstinline|add_to_queue| and \lstinline|read_from_queue| operations. Note that the \lstinline|add_to_queue| operation in the third stage is not unfolded since this is the output of the pipeline itself.
+%
+\begin{lstlisting}[frame=single]
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
+  int my_output1, i1;
+  ...
+  for (i1 = MAXDATA ; i1 > 0; i1--) {
+    ...
+    myOutputQueue1->elements[myOutputQueue1->addTo] = my_output1;
+    myOutputQueue1->addTo = (myOutputQueue1->addTo + 1) % myOutputQueue1->capacity;
+    myOutputQueue1->nr_elements++;
+
+    my_input2 = myInputQueue2->elements[myInputQueue2->readFrom];
+    myInputQueue2->nr_elements--;
+    myInputQueue2->readFrom = (myInputQueue2->readFrom + 1) % myInputQueue2->capacity;
+    ...
+    myOutputQueue2->elements[myOutputQueue2->addTo] = my_output2;
+    myOutputQueue2->addTo = (myOutputQueue2->addTo + 1) % myOutputQueue2->capacity;
+    myOutputQueue2->nr_elements++;
+
+    my_input3 = myInputQueue3->elements[myInputQueue3->readFrom];
+    myInputQueue3->nr_elements--;
+    myInputQueue3->readFrom = (myInputQueue3->readFrom + 1) % myInputQueue3->capacity;
+    ...
+    add_to_queue(myOutputQueue3, my_output3);
+  }
+\end{lstlisting}
+%
+A variable is \emph{read} from when that variable occurs in a statement and that variable is not being \emph{updated}; e.g.\ \lstinline|capacity| on Line 7 above.
 %
 Similarly, a variable undergoes a \emph{write} when it is being assigned to and is not being \emph{updated}; e.g.\ \lstinline|elements|
 %, specifically \lstinline|elements[myOutputQueue_1->addTo]|, 
-in the first output queue is written to on Line 13.
+in the first output queue is written to on Line 6.
 %
-Finally, a variable is \emph{updated} when it occurs in a statement that is both \emph{reading} from and \emph{writing} to that variable; e.g.\  \lstinline|addTo| in Line 12 above. Basic increment operators, e.g.\  \lstinline|nr_elements++| on Line 13, are similarly considered \emph{updates} due to their semantics.
+Finally, a variable is \emph{updated} when it occurs in a statement that is both \emph{reading} from and \emph{writing} to that variable; e.g.\  \lstinline|addTo| in Line 7 above. Basic increment operators, e.g.\  \lstinline|nr_elements++| on Line 8, are similarly considered \emph{updates} due to their semantics.
 %
 %
 In order to transform these \emph{read}, \emph{write}, and \emph{update} operations, we pair the operations in the order that they appear in the code and according to the variables they \emph{read}, \emph{write}, or \emph{update}, and transform those pairs according to their composition.
 %
-If two queues are semantically the same but referred to by different variables then they themselves will be considered the same during pairing; e.g.\ \lstinline|myOutputQueue_1| and \lstinline|myInputQueue_2| refer to the same intermediate queue, thus \lstinline|myOutputQueue_1->elements| and \lstinline|myInputQueue_2->elements| are similarly considered to be the same variable for pairing.
+If two queues are semantically the same but referred to by different variables then they themselves will be considered the same during pairing; e.g.\ \lstinline|myOutputQueue1| and \lstinline|myInputQueue2| refer to the same intermediate queue, thus \lstinline|myOutputQueue1->elements| and \lstinline|myInputQueue2->elements| are similarly considered to be the same variable for pairing.
 %
 In the above example, two cases arise:
 %
 \begin{enumerate}
 \item \emph{Updates} to variables that do not occur elsewhere in the code pertain to queue housekeeping operations are therefore removed.
 %
-In the above code, Lines 12, 13, 18, 19, 24, 25, 30, and 31 are all removed.
+In the above code, Lines 7, 8, 11, 12, 15, 16, 19, and 20 are all removed.
 
 %\item A solitary \emph{read} is not transformed in any way since it represents a source stage.
 %%
@@ -708,127 +1085,115 @@ In the above code, Lines 12, 13, 18, 19, 24, 25, 30, and 31 are all removed.
 
 \item A \emph{write} followed by a \emph{read} is merged into a single assignment statement s.t.\ the RHS of the \emph{read} is replaced with the RHS of the \emph{write}, and where the original \emph{write} statement is removed.
 %
-For example, in the above code, the \emph{write} to \lstinline|elements| on Line 11 and the \emph{read} from \lstinline|elements| on Line 17 can be paired (due in part to the behaviour of the queue reading the element that has just been added). Since this represents passing \lstinline|my_output_1| on Line 11 to \lstinline|my_input_2| on Line 17, it is possible to remove Line 17 and transform Line 11 into the form \lstinline|my_input_2 = my_output_1|.
+For example, in the above code, the \emph{write} to \lstinline|elements| on Line 6 and the \emph{read} from \lstinline|elements| on Line 10 can be paired (due in part to the behaviour of the queue reading the element that has just been added). Since this represents passing \lstinline|my_output1| on Line 6 to \lstinline|my_input2| on Line 10, it is possible to remove Line 10 and transform Line 6 into the form \lstinline|my_input_2 = my_output_1|.
 %
 % Note that this implicitly expects that addTo and readFrom are themselves in sync/correspond; i.e. you're not adding something and then reading something completely different.
 \end{enumerate}
 %
-An unpaired \emph{read} that is part of an \emph{update}, e.g.\ \lstinline|capacity| on Line 12, or a paired \emph{write}, e.g.\ \lstinline|addTo| on Line 11, is removed or otherwise transformed along with the \emph{update} or paired \emph{write} statement. Similarly, an unpaired \emph{read} that is part of a \emph{paired read} statement, e.g.\ \lstinline|readFrom| on Line 17, is also transformed according to the paired \emph{read} statement.
+An unpaired \emph{read} that is part of an \emph{update}, e.g.\ \lstinline|capacity| on Line 7, or a paired \emph{write}, e.g.\ \lstinline|addTo| on Line 6, is removed or otherwise transformed along with the \emph{update} or paired \emph{write} statement. Similarly, an unpaired \emph{read} that is part of a \emph{paired read} statement, e.g.\ \lstinline|readFrom| on Line 10, is also transformed according to the paired \emph{read} statement.
 %
 %We note that \emph{updates} are considered a barrier \dots
 %
 When applied, the above transformations result in the removal of the two intermediate queues.
 %
 \begin{lstlisting}[frame=single]
-void Pipe(void* a1, void* a2, void* a3) {
-  int my_output_1, i_1 = MAXDATA;
-  
-  pipeline_stage_queues_t *myQueues_1 = (pipeline_stage_queues_t *)a1;
-  queue_t *myOutputQueue_1 = myQueues_1->outputQueue;
+void Pipe(void** a0, void* a1, void* a2, void* a3) {
   ...
-  do {
-    // STAGE ONE
-    if (i_1 >= 0) { 
-      ...
-      my_input_2 = my_output_1;
-    }
-    // STAGE TWO
-    if (my_input_2 >= 0) {
-      ...
-      my_input_3 = my_output_2;
-    }    
-    // STAGE THREE
-    if (my_input_3 >= 0) {
-      ...
-      add_to_queue(myOutputQueue_3, my_output_3);
-    }
-  } while (i_1 >= 0 || my_input_2 > 0 || my_input_3 > 0);
-}
+  for (i1 = MAXDATA ; i1 > 0; i1--) {
+    my_output1 = ...;
+
+    my_input2 = my_output1;
+    my_output2 = ...;
+
+    my_input3 = my_output2;
+    my_output3 = ...;
+    add_to_queue(myOutputQueue3, my_output3);
+  }
 \end{lstlisting}
 
 % TODO: adjust stage three in all versions so that you have my_output_3 = -1; if (my_input_3 >=0) {...}; add_to_queue();
 
 % Oh, they're going to complain so much about this due to all the hand-waving and caveats and coincidences.
 
-\paragraph{Merge Arguments.}
-
-During restoration, the stages of a pipeline may each be represented by a single function. Since the majority of patterned pipeline implementations expect pipeline stages to take a single argument, i.e.\ usually the result of the preceding stage, it may be necessary to tuple the parameters of each stage.
+%\paragraph{Merge Arguments.}
 %
-This can be done (semi-)automatically.
+%During restoration, the stages of a pipeline may each be represented by a single function. Since the majority of patterned pipeline implementations expect pipeline stages to take a single argument, i.e.\ usually the result of the preceding stage, it may be necessary to tuple the parameters of each stage.
+%%
+%This can be done (semi-)automatically.
+%%
+%A \lstinline|struct| can be synthesised across each of the functions representing stages in the pipeline, with each function transformed to both return and take the synthesised \lstinline|struct| as its argument. In our running pipeline example, following the removal of the intermediate queues, we have three stages represented by the functions \lstinline|S1|, \lstinline|S2|, and \lstinline|S3|, respectively. \lstinline|S1| takes a pointer to an integer and returns an integer value; \lstinline|S2| takes and returns an integer value; and \lstinline|S3| takes an integer value and a pointer to its output queue and returns nothing.
+%%
+%\begin{lstlisting}[frame=single]
+%int S1(int* i_1) {
+%  int my_output_1;
+%  if (*i_1 >= 0) {
+%    my_output_1 = *i_1;
+%    *i_1 = *i_1-1;
+%  }
+%  return my_output_1;
+%}
 %
-A \lstinline|struct| can be synthesised across each of the functions representing stages in the pipeline, with each function transformed to both return and take the synthesised \lstinline|struct| as its argument. In our running pipeline example, following the removal of the intermediate queues, we have three stages represented by the functions \lstinline|S1|, \lstinline|S2|, and \lstinline|S3|, respectively. \lstinline|S1| takes a pointer to an integer and returns an integer value; \lstinline|S2| takes and returns an integer value; and \lstinline|S3| takes an integer value and a pointer to its output queue and returns nothing.
+%int S2(int my_output_1) {
+%  ...
+%  return my_output_2
+%}
 %
-\begin{lstlisting}[frame=single]
-int S1(int* i_1) {
-  int my_output_1;
-  if (*i_1 >= 0) {
-    my_output_1 = *i_1;
-    *i_1 = *i_1-1;
-  }
-  return my_output_1;
-}
-
-int S2(int my_output_1) {
-  ...
-  return my_output_2
-}
-
-void S3(int my_output_2, queue_t* myOutputQueue_3) {
-  ...
-}
-
-void Pipe(void* a1, void* a2, void* a3) {
-  ...
-  do {
-    my_output_1 = S1(&i_1);
-    my_output_2 = S2(my_output_1);
-    S3(my_output_2, myOutputQueue_3);
-  } while (i_1 >= 0 || my_output_1 > 0 || my_output_2 > 0);
-}
-\end{lstlisting}
+%void S3(int my_output_2, queue_t* myOutputQueue_3) {
+%  ...
+%}
 %
-\noindent
-Here, we observe that the result of the first two stages are used in the merged loop bounding condition and must therefore be propagated through the stages when converted to composition form. This is achieved by synthesising a new \lstinline|struct|, \lstinline|PipeStruct|, that contains all those variables used in the condition statement, and both the input and output to the pipeline.
+%void Pipe(void* a1, void* a2, void* a3) {
+%  ...
+%  do {
+%    my_output_1 = S1(&i_1);
+%    my_output_2 = S2(my_output_1);
+%    S3(my_output_2, myOutputQueue_3);
+%  } while (i_1 >= 0 || my_output_1 > 0 || my_output_2 > 0);
+%}
+%\end{lstlisting}
+%%
+%\noindent
+%Here, we observe that the result of the first two stages are used in the merged loop bounding condition and must therefore be propagated through the stages when converted to composition form. This is achieved by synthesising a new \lstinline|struct|, \lstinline|PipeStruct|, that contains all those variables used in the condition statement, and both the input and output to the pipeline.
+%%
+%\begin{lstlisting}[frame=single]
+%struct PipeStruct {
+%  // INPUTS
+%  int* i_1;
+%  // OUTPUTS
+%  queue_t* myOutputQueue_3;
+%  // USED IN LOOP CONDITION
+%  int my_output_1;
+%  int my_output_2;
+%};
 %
-\begin{lstlisting}[frame=single]
-struct PipeStruct {
-  // INPUTS
-  int* i_1;
-  // OUTPUTS
-  queue_t* myOutputQueue_3;
-  // USED IN LOOP CONDITION
-  int my_output_1;
-  int my_output_2;
-};
-
-PipeStruct S1(PipeStruct arg) {
-  ...
-  return arg;
-}
-
-PipeStruct S2(PipeStruct arg) {
-  ...
-  return arg;
-}
-
-PipeStruct S3(PipeStruct arg) {
-  ...
-  return arg;
-}
-
-void Pipe(void* a1, void* a2, void* a3) {
-  ...
-  do {
-    PipeStruct arg = PipeStruct {&i_1, myOutputQueue_3};
-    PipeStruct r = S3(S2(S1(arg)));
-    my_output_1 = r.my_output_1;
-    my_output_2 = r.my_output_2;
-  } while (i_1 >= 0 || my_output_1 > 0 || my_output_2 > 0);
-}
-\end{lstlisting}
+%PipeStruct S1(PipeStruct arg) {
+%  ...
+%  return arg;
+%}
 %
-\noindent
-Here, in order to introduce a TBB pipeline, we keep the input and output to the pipeline as pointers. The variables \lstinline|my_output_1| and \lstinline|my_output_2| are only used as part of the condition and are not outputs of the pipeline, as such they are stored by their value. In this particular example, it is possible to remove the second and third disjunctions and therefore remove \lstinline|my_ouptut_1| and \lstinline|my_ouptut_2| from \lstinline|PipeStruct|, and thus further simplify the pipeline, but this is left to another Shaping transformation or sequence of transformations.
+%PipeStruct S2(PipeStruct arg) {
+%  ...
+%  return arg;
+%}
+%
+%PipeStruct S3(PipeStruct arg) {
+%  ...
+%  return arg;
+%}
+%
+%void Pipe(void* a1, void* a2, void* a3) {
+%  ...
+%  do {
+%    PipeStruct arg = PipeStruct {&i_1, myOutputQueue_3};
+%    PipeStruct r = S3(S2(S1(arg)));
+%    my_output_1 = r.my_output_1;
+%    my_output_2 = r.my_output_2;
+%  } while (i_1 >= 0 || my_output_1 > 0 || my_output_2 > 0);
+%}
+%\end{lstlisting}
+%%
+%\noindent
+%Here, in order to introduce a TBB pipeline, we keep the input and output to the pipeline as pointers. The variables \lstinline|my_output_1| and \lstinline|my_output_2| are only used as part of the condition and are not outputs of the pipeline, as such they are stored by their value. In this particular example, it is possible to remove the second and third disjunctions and therefore remove \lstinline|my_output_1| and \lstinline|my_output_2| from \lstinline|PipeStruct|, and thus further simplify the pipeline, but this is left to another Shaping transformation or sequence of transformations.
 
 %\noindent
 %\hrulefill
@@ -1766,7 +2131,7 @@ int main (int argc, char **argv)
 
 %For the convolution example, we start off with a pthreaded version in Listing~\ref{convo1}. The structure of this example follows similar to the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. The example first sets up a queue of input tasks, at Lines 67-71, placing images onto a task queue, \lstinline{tq1}; \lstinline{createpipefarm} is then called, which is defined on Line 59, setting up the various threads for the workers that will be come the pipeline stages; finally, Lines 74-76 show the results from the pipeline being retrieved from an output queue, \lstinline{tq3}. The pipeline stages are shown at Line 36 and 45, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's respecting input queue (\lstinline{tq1} for \lstinline{stage1}, and \lstinline{tq2} for \lstinline{stage2}), computes the unit of work on the task item (Lines 40 and 49) and then places the result on an output queue (Lines 41 and 50). Each \lstinline{puttask} and \lstinline{gettask} function (here simplified over an abstract type \lstinline{T} for brevity) uses pthread locking and unlocking mechanisms for thread safety, together with other functionality for queue housekeeping: tracking positions of item retrieval, and so on. 
 \noindent
-For the convolution example, we start off with a pthreaded version in Listing~\ref{convo0}, with a similar structure as the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a list of names of files with images), the example creates the pipeline in lines 37--40, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at lines 11 and 21, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectively), computes the unit of work on the task item (lines 15 and 25) and then places the result on an output queue (Lines 16 and 26). Functions \lstinline{add_to_queue} and \lstinline{read_from_queue} put a task in an output queue and read a task from an input queue, respectivelly, in a thread safe manner. The code for \lstinline{add_to_queue} was shown in Listing~\ref{lst:simplePipe}.
+For the convolution example, we start off with a pthreaded version in Listing~\ref{convo0}, with a similar structure as the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a list of names of files with images), the example creates the pipeline in Lines 37--40, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at Lines 11 and 21, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectively), computes the unit of work on the task item (Lines 15 and 25) and then places the result on an output queue (Lines 16 and 26). Functions \lstinline{add_to_queue} and \lstinline{read_from_queue} put a task in an output queue and read a task from an input queue, respectivelly, in a thread safe manner. The code for \lstinline{add_to_queue} was shown in Listing~\ref{lst:simplePipe}.
 
 The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token, \lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue amd terminates the stages when received (Listing~\ref{convo1}).
 
@@ -1798,7 +2163,7 @@ The \emph{first step} to restoration is to remove the threading code; this is a 
 %\end{lstlisting}
 
 \noindent
-The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and out queue, see Listing~\ref{convo2}). 
+The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and output queue; see Listing~\ref{convo2}). 
 
 \begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
   /* Unfolded gettask function, reutrning t1 as an input task to stage 1 */
@@ -1885,8 +2250,8 @@ Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchma
 		Blackscholes & F &  29 & 29 & 366 & 393 & 38.5 & 39  \\
 		Matrix Multiplication & F & 9 & 15 & 176 & 146 & 909.4 & 896.5  \\
 		Mandelbrot & F  & 12 & 11 & 145 & 142 & 2.21 & 2.28 \\
-		NQueens & P & 41 & 24 & 421 & 337 & 62.3 & 20.6  \\
-		Cholesky Decomposition & P & 31  & 19 & 321 & 226 & 12.7 & 1.1 \\
+		NQueens & P & 41 & 24 & 421 & 337 & 8.63 & 8.622  \\
+		Cholesky Decomposition & P & 31  & 19 & 321 & 226 & 16.97 & 17.08 \\
 		PGPry & P & 23 & 19 & 210 & 243 & 138.1 & 131 \\
 		Image Convolution & P & 71 & 29 & 714 & 280 & 12.85  & 5.2 \\
 		\hline \hline
@@ -1899,17 +2264,17 @@ Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchma
 
 %\paragraph{Software Restoration}
 
-The concept of a \emph{systematic}, or \emph{structured} approach to \emph{software restoration} has, to our knowledge, been largely previously unexplored. A concept that is probably most related to \emph{software restoration} is that of \emph{reverse engineering}, which is a technique used to retrieve high-level requirements from existing sequential code~\cite{10.1145/287000.287001}\cite{10.1145/337180.337234}. Yu et al.~\cite{10.1109/RE.2005.61} proposed a technique that attempts to use refactoring to try and recover requirements goal models from legacy code. However, the work only targets sequential code and only capture high-level information that is not useful for parallel restoration.
+The concept of a \emph{systematic}, or \emph{structured} approach to \emph{software restoration} has, to our knowledge, been largely previously unexplored. A concept that is probably most related to \emph{software restoration} is that of \emph{reverse engineering}, which is a technique used to retrieve high-level requirements from existing sequential code~\cite{10.1145/287000.287001,10.1145/337180.337234}. Yu et al.~\cite{10.1109/RE.2005.61} proposed a technique that attempts to use refactoring to try and recover requirements goal models from legacy code. However, the work only targets sequential code and only capture high-level information that is not useful for parallel restoration.
 %
 %\paragraph{Refactoring}
 Refactoring has roots in Burstall and Darlington's fold/unfold system~\cite{darlington77}, and has been applied to a wide range of applications as an approach to program transformation~\cite{mens_refactoring}, with refactoring tools a feature of popular IDEs including, \textit{i.a.}, Eclipse~\cite{EclipseWeb} and Visual Studio~\cite{VisualStudioWeb}.
 Previous work on parallelisation \textit{via} refactoring has primarily focussed on the introduction and manipulation of parallel pattern libraries in C++~\cite{brownagricultural,DBLP:conf/pdp/JanjicBMHDAG16} and Erlang~\cite{hlpp,DBLP:journals/cai/BarwellBHTB16}. Another approach
 has been the automated introduction of annotations in the form of
-C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallel loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
+C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallel loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Aldinucci and Danelutto proposed an approach to convert between skeleton configurations and could be used to introduce parallelism, but where the sequential program must also be defined using (sequential) skeletons~\cite{pdcs:nf:99}. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
 %
 %\paragraph{Parallel Patterns}
 High-level parallel patterns, sometimes known as \emph{algorithmic skeletons} offer high-level abstraction over low-level concurrency methods~\cite{Asanovic:2009:VPC,DBLP:journals/spe/Gonzalez-VelezL10}.
-A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{DBLP:journals/mis/JinLWY15}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
+A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{doi:10.1002/9781119332015.ch13}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
 Since patterns are well-defined, rewrites can be used to automatically explore the space of equivalent patterns, e.g.\ optimising for performance~\cite{DBLP:conf/europar/MatsuzakiKIHA04,DBLP:conf/ipps/GorlatchWL99} or generating optimised code as part of a DSL~\cite{DBLP:conf/dagstuhl/Gorlatch03}. Moreover, since patterns are architecture-agnostic, patterns have been similarly implemented for multiple architectures~\cite{DBLP:conf/cgo/HagedornSSGD18,DBLP:conf/parco/ReyesL15}.
 
 \section{Conclusions} \label{sec:Conclusions} 
