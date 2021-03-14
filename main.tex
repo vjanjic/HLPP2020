@@ -40,7 +40,7 @@
   breaklines=true,
   frame=lines,
   otherkeywords={[[,]],::,constexpr},
-  emph={rpr,kernel,target,in,out,pipeline,stream,farm,pipe,map,sync,async, rprmv, base, split, unroll, Pipeline, Farm, parallel_execution_ff},
+  emph={rpr,kernel,target,in,out,pipeline,stream,farm,pipe,map,sync,async, rprmv, base, split, unroll, Pipeline, Farm, parallel_execution_ff, pthread_join, pthread_create, pthread_t, pthread_cond_wait, pthread_cond_signal, pthread_mutex_lock, pthread_mutex_unlock, EOS, tbb, make_filter, filter, serial, parallel},
   emphstyle={\color{magenta}\bfseries}
 }
 
@@ -73,7 +73,8 @@
 
 
 \begin{document}
-\title{Restoration of Legacy Parallelism in C and C++ Applications}
+\title{Restoration of Legacy Parallelism}
+\subtitle{Transforming Pthreads into Farm and Pipeline Patterns}
 %
 %\titlerunning{Abbreviated paper title}
 % If the paper title is too long for the running head, you can set
@@ -84,16 +85,20 @@
 	Adam D. Barwell
 }
 
-%\authorrunning{Short form of author list} % if too long for running head
+\authorrunning{V. Janjic, C. Brown, A. Barwell} % if too long for running head
 
 \institute{
 		V. Janjic \at
 	School of Science and Engineering, University of Dundee, UK. \\
 	\email{vjanjic001@dundee.ac.uk}
 	\and
-	C. Brown, A. Barwell \at
+	C. Brown \at
 	School of Computer Science, University of St Andrews, UK. \\
-	\email{cmb21,adb23@st-andrews.ac.uk}           %  \\
+	\email{cmb21@st-andrews.ac.uk}           %  \\
+		\and
+		A. Barwell \at
+		Department of Computing, Imperial College London, UK. \\
+		\email{a.barwell@imperial.ac.uk}           %  \\
 }
 
 \date{Received: date / Accepted: date}
@@ -102,9 +107,9 @@
 \maketitle
 %
 \begin{abstract}
-    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive, and portable whilst achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is laborious and error-prone, due to typical concurrency and pthreading code being closely intertwined throughout the business logic of the program. In this paper, we present a new software restoration methodology, to transform legacy-parallel programs implemented using e.g.\ \emph{pthreads} into structured patterned equivalents. We demonstrate our restoration technique on a number of benchmarks, allowing the introduction of patterned parallelism in the resulting code; we record improvements in cyclomatic complexity and speedups.
+    \emph{Parallel patterns} are a high-level programming paradigm that enables non-experts in parallelism to develop structured parallel programs that are maintainable, adaptive, and portable whilst achieving good performance on a variety of parallel systems. However, there still exists a large base of \emph{legacy-parallel code} developed using ad-hoc methods and incorporating low-level parallel/concurrency libraries such as \emph{pthreads} without any parallel patterns in the fundamental design. This code would benefit from being restructured and rewritten into pattern-based code. However, the process of rewriting the code is laborious and error-prone, due to typical concurrency and pthreading code being closely intertwined throughout the business logic of the program. In this paper, we present a new software restoration methodology, to transform legacy-parallel programs implemented using \emph{pthreads} into structured farm and pipeline patterned equivalents. We demonstrate our restoration technique on a number of benchmarks, allowing the introduction of patterned farm and pipeline parallelism in the resulting code; we record improvements in cyclomatic complexity and speedups on a number of representative benchmarks.
 
-\keywords{Parallel patterns, restoration, pthreads, program transformation, code analysis}
+\keywords{Parallel patterns, restoration, pthreads, program transformation, refactoring, code analysis, farm, pipeline, TBB}
 \end{abstract}
 
 %
@@ -118,6 +123,215 @@
 \bibliographystyle{spmpsci}      % mathematics and physical sciences
 %\bibliographystyle{spphys}       % APS-like style for physics
 %\bibliography{hlpp,RePhrase,rephrase2}   % name your BibTeX data base
-\bibliography{pruned}
+%\bibliography{pruned}
+
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{{#1}}
+\providecommand{\urlprefix}{URL }
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{DOI~\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{DOI~\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+
+\bibitem{DBLP:reference/parallel/X11pz}
+{TBB} (Intel Threading Building Blocks).
+\newblock In: Encyclopedia of Parallel Computing, p. 2029. Springer (2011)
+
+\bibitem{pdcs:nf:99}
+Aldinucci, M., Danelutto, M.: Stream Parallel Skeleton Optimization.
+\newblock In: {PDCS}, pp. 955--962 (1999)
+
+\bibitem{doi:10.1002/9781119332015.ch13}
+Aldinucci, M., Danelutto, M., Kilpatrick, P., Torquati, M.: Fastflow:
+  High-Level and Efficient Streaming on Multicore, chap.~13, pp. 261--280
+  (2017).
+\newblock \doi{10.1002/9781119332015.ch13}
+
+\bibitem{Asanovic:2009:VPC}
+Asanovic, K., Bod{\'{\i}}k, R., Demmel, J., Keaveny, T., Keutzer, K.,
+  Kubiatowicz, J., Morgan, N., Patterson, D.A., Sen, K., Wawrzynek, J., Wessel,
+  D., Yelick, K.A.: A view of the Parallel Computing Landscape.
+\newblock Commun. {ACM} \textbf{52}(10), 56--67 (2009)
+
+\bibitem{DBLP:conf/ifl/AxelssonCSSEP10}
+Axelsson, E., Claessen, K., Sheeran, M., Svenningsson, J., Engdal, D., Persson,
+  A.: The Design and Implementation of Feldspar - an Embedded Language for
+  Digital Signal Processing.
+\newblock In: {The 22nd International Symposium on Implementation and Application of Functional Languages, IFL 2010, }, \emph{Lecture Notes in Computer Science}, vol. 6647, pp.
+  121--136. Springer (2010)
+
+\bibitem{soundrefac}
+Barwell, A.D., Brown, C., Sarkar, S.: {Proof-Carrying Refactorings: Sound
+  Refactoring for Haskell via Dependent Types}.
+\newblock In: {International Conference on Functional Programming (ICFP)}, pp.
+  1--25. \emph{In Submission} (2021)
+
+\bibitem{DBLP:journals/cai/BarwellBHTB16}
+Barwell, A.D., Brown, C., Hammond, K., Turek, W., Byrski, A.: Using Program
+  Shaping and Algorithmic Skeletons to Parallelise an Evolutionary Multi-Agent
+  System in Erlang.
+\newblock Journal of Computing and Informatics \textbf{35}(4), 792--818 (2016)
+
+\bibitem{hlpp}
+Brown, C., Danelutto, M., Hammond, K., Kilpatrick, P., Elliott, A.:
+  Cost-directed Refactoring for Parallel Erlang Programs.
+\newblock International Journal of Parallel Programming \textbf{42}(4),
+  564--582 (2014).
+  
+\bibitem{hybrid}
+Brown, C., Janjic, V., Barwell, A, Thomson, J, Lozano, R. C., Cole, M, Franke, B, Garcia-Sanchez, J.D., Astorga, D. D. R and MacKenzie, K:
+A Hybrid Approach to Parallel Pattern Discovery in C++
+\newblock 2020 28th Euromicro International Conference on Parallel, Distributed and Network-Based Processing (PDP), 187--191 (2020).
+
+\bibitem{grppirefac}
+Brown, C., Janjic, V., Barwell, A., García, J.D., MacKenzie, K.: {Refactoring
+  GrPPI: Generic Refactoring for Generic Parallelism in C++}.
+\newblock International Journal of Parallel Programming \textbf{48}(4),
+  603--625 (2020).
+\newblock \doi{https://doi.org/10.1007/s10766-020-00667-x}
+
+\bibitem{brownagricultural}
+Brown, C., Janjic, V., Hammond, K., Sch{\"{o}}ner, H., Idrees, K., Glass, C.W.:
+  Agricultural reform: More Efficient Farming using Advanced Parallel
+  Refactoring Tools.
+\newblock In: {Euromicro International Conference on Parallel, Distributed and Network-based Processing, PDP}, pp. 36--43. {IEEE} Computer Society (2014)
+
+\bibitem{darlington77}
+Burstall, R.M., Darlington, J.: A Transformation System for Developing
+  Recursive Programs.
+\newblock Journal of the {ACM} \textbf{24}(1), 44--67 (1977)
+
+\bibitem{10.5555/263953}
+Butenhof, D.R.: Programming with POSIX Threads.
+\newblock Addison-Wesley Longman Publishing Co., Inc., USA (1997)
+
+\bibitem{ACM:book/msoft/CampbellM11}
+Campbell, C., Miller, A.: A Parallel Programming with Microsoft Visual C++:
+  Design Patterns for Decomposition and Coordination on Multicore
+  Architectures, 1st edn.
+\newblock Microsoft Press (2011)
+
+\bibitem{10.1145/287000.287001}
+Cook, J.E., Wolf, A.L.: Discovering Models of Software Processes from
+  Event-based Data.
+\newblock {ACM} Trans. Softw. Eng. Methodol. \textbf{7}(3), 215--249 (1998)
+
+\bibitem{10.1145/337180.337234}
+Corbett, J.C., Dwyer, M.B., Hatcliff, J., Laubach, S., Pasareanu, C.S., Robby,
+  Zheng, H.: Bandera: Extracting Finite-State Models from Java Source Code.
+\newblock In: {Proceedings of the 22nd International Conference on Software Engineering ICSE}, pp. 439--448. {ACM} (2000)
+
+\bibitem{10.1109/99.660313}
+Dagum, L., Menon, R.: Openmp: An Industry-Standard API for Shared-Memory
+  Programming.
+\newblock IEEE Journal of Computer Science Engineering \textbf{5}(1), 46–55 (1998)
+
+\bibitem{10.1145/3132710}
+De~Sensi, D., De~Matteis, T., Torquati, M., Mencagli, G., Danelutto, M.:
+  Bringing Parallel Patterns out of the Corner: The P3ARSEC Benchmark Suite.
+\newblock ACM Transactions on Architecture and Code Optimization \textbf{14}(4) (2017).
+\newblock \doi{10.1145/3132710}.
+\newblock \urlprefix\url{https://doi.org/10.1145/3132710}
+
+\bibitem{grppi}
+del Rio Astorga, D., Dolz, M.F., Fernández, J., García, J.D.: A Generic
+  Parallel Pattern Interface for Stream and Data Processing.
+\newblock Concurrency and Computation: Practice and Experience \textbf{29}(24),
+  e4175 (2017).
+\newblock \doi{https://doi.org/10.1002/cpe.4175}.
+\newblock
+  \urlprefix\url{https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.4175}.
+\newblock E4175 cpe.4175
+
+\bibitem{dig}
+Dig, D.: A Refactoring Approach to Parallelism.
+\newblock {IEEE} Software \textbf{28}(1), 17--22 (2011)
+
+\bibitem{EclipseWeb}
+The Eclipse Foundation.: {E}clipse - an {O}pen {D}evelopment {P}latform (2009).
+\newblock \texttt{http://www.eclipse.org}
+
+\bibitem{DBLP:books/daglib/0019908}
+Fowler, M.: Refactoring - Improving the Design of Existing Code.
+\newblock Addison Wesley Object Technology Series. Addison-Wesley (1999)
+
+\bibitem{DBLP:journals/spe/Gonzalez-VelezL10}
+Gonz{\'{a}}lez{-}V{\'{e}}lez, H., Leyton, M.: A Survey of Algorithmic Skeleton
+  Frameworks: High-Level Structured Parallel Programming Enablers.
+\newblock Software, Practice and Experience \textbf{40}(12), 1135--1160 (2010)
+
+\bibitem{DBLP:conf/dagstuhl/Gorlatch03}
+Gorlatch, S.: Domain-specific Optimizations of Composed Parallel Components.
+\newblock In: Domain-Specific Program Generation, \emph{Lecture Notes in
+  Computer Science}, vol. 3016, pp. 274--290. Springer (2003)
+
+\bibitem{DBLP:conf/ipps/GorlatchWL99}
+Gorlatch, S., Wedler, C., Lengauer, C.: Optimization Rules for Programming with
+  Collective Operations.
+\newblock In: {Proceedings of the 13th International Parallel Processing Symposium on Parallel and Distributed Computing IPPS/SPDP}, pp. 492--499. {IEEE} Computer Society (1999)
+
+\bibitem{DBLP:journals/ppl/GrieblerDTF17}
+Griebler, D., Danelutto, M., Torquati, M., Fernandes, L.G.: Spar: {A} {DSL} for
+  High-Level and Productive Stream Parallelism.
+\newblock Parallel Processing Letters \textbf{27}(1), 1740005:1--1740005:20 (2017).
+\newblock \doi{10.1142/S0129626417400059}.
+\newblock \urlprefix\url{https://doi.org/10.1142/S0129626417400059}
+
+\bibitem{DBLP:conf/cgo/HagedornSSGD18}
+Hagedorn, B., Stoltzfus, L., Steuwer, M., Gorlatch, S., Dubach, C.: High
+  Performance Stencil Code Generation with Lift.
+\newblock In: {Proceedings of the International Symposium on Code Generation and Optimization, CGO}, pp. 100--112. {ACM} (2018)
+
+\bibitem{DBLP:conf/pdp/JanjicBMHDAG16}
+Janjic, V., Brown, C., Mackenzie, K., Hammond, K., Danelutto, M., Aldinucci,
+  M., Garc{\'{\i}}a, J.D.: {RPL:} {A} Domain-Specific Language for Designing
+  and Implementing Parallel {C++} Applications.
+\newblock In: {Proceedings of the 24th International Conference on Parallel, Distributed and Network-based Processing, PDP}, pp. 288--295. {IEEE} Computer Society (2016)
+
+\bibitem{Kennedy:DeadCodeElimination}
+Kennedy, K.: A Survey of Data Flow Analysis Techniques.
+\newblock{In Program Flow Analysis, S. S. Muchnick and N. D. Jones, Eds, Prentice-Hall, Englewood Cliffs, N.J.} p. 5–54 (1981)
+
+\bibitem{10.1145/2678015.2682533}
+Li, H., Thompson, S.J.: Safe Concurrency Introduction through Slicing.
+\newblock In: {Proceedings of the Workshop on Partial Evaluation and Program Manipulation, PEPM}, pp. 103--113. {ACM} (2015)
+
+\bibitem{DBLP:conf/europar/MatsuzakiKIHA04}
+Matsuzaki, K., Kakehi, K., Iwasaki, H., Hu, Z., Akashi, Y.: A Fusion-Embedded
+  Skeleton Library.
+\newblock In: Euro-Par, \emph{Lecture Notes in Computer Science}, vol. 3149,
+  pp. 644--653. Springer (2004)
+
+\bibitem{10.1109/TSE.1976.233837}
+McCabe, T.J.: A Complexity Measure.
+\newblock {IEEE} Transactions on Software Engineering \textbf{2}(4), 308--320 (1976)
+
+\bibitem{mens_refactoring}
+Mens, T., Tourw{\'{e}}, T.: A Survey of Software Refactoring.
+\newblock {IEEE} Transactions on Software Engineering \textbf{30}(2), 126--139 (2004)
+
+\bibitem{VisualStudioWeb}
+Microsoft: {Visual Studio IDE} (2019).
+\newblock \texttt{https://visualstudio.microsoft.com/vs/}
+
+\bibitem{DBLP:conf/parco/ReyesL15}
+Reyes, R., Lom{\"{u}}ller, V.: {SYCL:} Single-Source {C++} Accelerator
+  Programming.
+\newblock In: {Proceedings of the International Conference on Parallel Computing (PARCO)}, \emph{Advances in Parallel Computing}, vol.~27, pp.
+  673--682. {IOS} Press (2015)
+
+\bibitem{rio:2018}
+del Rio~Astorga, D., Dolz, M.F., S{\'{a}}nchez, L.M., Garc{\'{\i}}a, J.D.,
+  Danelutto, M., Torquati, M.: Finding Parallel Patterns through Static
+  Analysis in {C++} Applications.
+\newblock {International Journal of High-Perofmrnace Computing (IJHPCA)} \textbf{32}(6) (2018)
+
+\bibitem{10.1109/RE.2005.61}
+Yu, Y., Wang, Y., Mylopoulos, J., Liaskos, S., Lapouchnian, A., do~Prado~Leite,
+  J.C.S.: Reverse Engineering Goal models from Legacy Code.
+\newblock In: {13th IEEE International Conference on Requirements Engineering (RE 2005), 29 August - 2 September 2005, Paris, France}, pp. 363--372. {IEEE} Computer Society (2005)
+
+\end{thebibliography}
+
 
 \end{document}

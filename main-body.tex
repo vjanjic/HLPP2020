@@ -16,73 +16,10 @@
 
 \section{Introduction}
 
-Parallel patterns are a well-established high-level parallel programming model for producing portable, maintainable, adaptive, and efficient parallel code. They have been endorsed by some of the biggest IT companies, such as Intel and Microsoft, who have developed their own parallel pattern libraries (Intel TBB~\cite{DBLP:reference/parallel/X11pz}, Microsoft PPL, etc.) A standard way to use these libraries is to start with a sequential code base, identifying in it the portions of code that are amenable to parallelisation, together with the exact parallel pattern to be applied.  Then instantiating the identified pattern at the identified location in the code, after possibly restructuring the code to accommodate the parallelism. 
-
-%Figure~\ref{fig:matmult} shows an example of sequential and parallel patterned-code of Matrix Multiplication, one of the most common parallel benchmarks. 
-
-%\begin{small}
-%  \begin{lstlisting}[caption=Pthreads Matrix Multiplication\label{lst:matmult_seq}]
-%double multiply_row_by_column (double **mat1, int row, double **mat2, int col)
-%{
-%  int k;
-%  double sum=0;
-%  for (k=0; k<dim; k++)
-%    sum += mat1[row][k] * mat2[k][col];%
-
-%  return sum;
-%}
-
-%void multiply_row_by_matrix (double **mat1, int row, double **mat2, double **res)
-%{
-%  for (int col=0; col<dim; col++)
-%    res[row][col] = multiply_row_by_column (mat1, row, mat2, col);
-
-%}
-
-%static void * thread_func (void* arg)
-%{
- % input_data *input = (input_data *)arg;
- % for (unsigned int i = input->row_start; i < input->row_end; i++) {
- %         multiply_row_by_matrix(a, i, b, res);
- % }
-
-%  return (void *)0;
-%}
-
-%void matrix_muliply()
-%{
-%  pthread_attr_t attr;
-%  int status;%
-
-%  in = (input_data *) malloc (sizeof(input_data) * thread_count);
-%  threads = (pthread_t *) malloc (sizeof(pthread_t) * thread_count);
-  
-%  status = pthread_attr_init(&attr);
-%  if (status != 0)
-%    std::cout << "Init attributes object" << std::endl;
-
-%  int chunk_size = dim / thread_count;
-%  int count = 0;
-
-%  for (unsigned int thread_ind = 0; thread_ind < thread_count; thread_ind++) {
-%    /* Setting some generic parameters for each thread */
-%    in[thread_ind].row_start = count;
- %   in[thread_ind].row_end = count + chunk;
-  %  count += chunk;
-
-   % status = pthread_create(&threads[thread_ind], &attr, &thread_func, &in[thread_ind]);
-%    if (status != 0)
- %     handle_error("Creating thread failed!");
-
- % }%
-%}
- % \end{lstlisting}
-  
-%\end{small}
-
-Sequential code gives the cleanest starting point for introduction of parallel patterns. There exists, however, a large base of \emph{legacy} code  that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads}~\cite{10.5555/263953}. This code is usually very hard to read and understand, is tailored to a specific parallelisation, and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. An even bigger problem, from the software engineering perspective, is the maintainability of the legacy-parallel code: commonly, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms, and sometimes even thread/task scheduling implemented in the code. 
+Parallel patterns are a well-established high-level parallel programming model for producing portable, maintainable, adaptive, and efficient parallel code. They have been endorsed by some of the biggest IT companies, such as Intel and Microsoft, who have developed their own parallel pattern libraries; e.g.\ Intel TBB~\cite{DBLP:reference/parallel/X11pz} and Microsoft PPL. A standard way to use these libraries is to start with a sequential code base, identifying in it the portions of code that are amenable to parallelisation, together with the exact parallel pattern to be applied.  Proceeding with instantiating the identified pattern at the identified location in the code, after possibly restructuring the code to accommodate the parallelism. 
+\emph{Sequential code therefore gives the cleanest starting point for introduction of parallel patterns}. There exists, however, a large base of \emph{legacy} code  that was parallelised using lower-level, mostly ad-hoc parallelisation methods and libraries, such as \emph{pthreads}~\cite{10.5555/263953}. This code is usually very hard to read and understand, is tailored to a specific parallelisation, and optimised for a specific architecture, effectively preventing alternative (and possibly better) parallelisations and limiting portability and adaptivity of the code. An even bigger problem, from a software engineering perspective, is the maintainability of the legacy-parallel code: commonly, the programmer who wrote it is the only one who can understand and maintain the code. This is due to both complexity of low-level threading libraries and the need for custom-built data structures, synchronisation mechanisms, and sometimes even thread/task scheduling implemented in the code. 
 %
-The benefits of using parallel patterns lie in a clear separation between sequential and parallel parts of the code and a high-level description of the underlying parallelism, making the patterned applications much easier to maintain, change, and adapt to new architectures. Common examples include \emph{farms} and \emph{pipelines}.
+The benefits of using parallel patterns lie in a clear separation between sequential and parallel parts of the code and a high-level description of the underlying parallelism, making the patterned applications much easier to maintain, change, and adapt to new architectures. In this paper, we deal with \emph{farms} and \emph{pipelines}.
 %
 %\begin{itemize}
 %	\item 
@@ -90,21 +27,16 @@ In a farm, a single computational worker is applied to a set of independent inpu
 %	\item 
 %The pipeline pattern models a parallel pipeline. 
 In a parallel pipeline, a sequence of functions, $f_{1}, f_{2}, ..., f_{m}$ are applied to a stream of independent inputs, $x_{1}, ..., x_{n}$ where the output of $f_{i}$ becomes the input to $f_{i+1}$; the parallelism arises from executing $f_{i+1}(f_{i}(...f_{1}(x_{k})...))$ in parallel with $f_{i}(f_{i-1}(...f_{1}(x_{k+1})...))$.
-%\end{itemize}
-
-
-
-%Legacy-parallel code, written in an ad-hoc way using low level parallel libraries such as \emph{pthreads}, is still very much present in various software repositories and projects. This code was usually developed by parallelism experts, before the libraries and programming models for structured parallelisation became popular. It is usually tailored to one specific target machine and architecture, and might use highly-customised parallelisation and associated data structures. This makes it very hard to maintain the code, an increasing important feature in software engineering, or to port it to new architectures. 
-  
-In this paper, we present a new methodology for the restoration of legacy-parallel code into an equivalent \emph{patterned} form, through application of a number of identified program transformations; the ultimate goal of which is to provide a semi-automatic way of converting legacy-parallel code into an equivalent patterned code, therefore increasing its maintainability, adaptivity, and portability 
-%while keeping similar or, in some cases, even improving the performance. 
-whilst either improving or maintaining performance.
 %
+In this paper, we present a \emph{new methodology} for the restoration of legacy-parallel code into an equivalent \emph{patterned} form, through the application of a number of identified program transformations; the ultimate goal of which is to provide a semi-automatic way of converting legacy-parallel code into an equivalent patterned code, therefore increasing its maintainability, adaptivity, and portability 
+%while keeping similar or, in some cases, even improving the performance. 
+whilst either improving or maintaining performance. The transformations presented in this paper are intended as manual transformations. We envisage incorporating implementations of these refactorings into a semi-automated refactoring tool as future work.
+
 This paper makes the following specific research contributions:
 %
 \begin{enumerate}
-    \item we present a novel software restoration methodology for converting legacy-parallel applications into their structured (patterned) parallel equivalents;
-    \item we present a new set of \emph{restoration} transformations that attempt to \emph{systematically}, \emph{i}) \emph{eliminate} pthread operations from legacy C/C++ programs; \emph{ii}) perform \emph{code repair}, fixing any bugs introduced in \emph{i}; and, \emph{iii}) \emph{reshape} code in preparation for parallel pattern introduction;
+    \item we present a novel software restoration methodology for converting legacy-parallel applications into their structured (patterned) parallel equivalents, via the farm and pipeline patterns;
+    \item we present a new set of (manual) \emph{restoration} transformations that attempt to \emph{systematically}, \emph{i}) \emph{eliminate} pthread operations from legacy C/C++ programs; \emph{ii}) perform \emph{code repair}, fixing any bugs introduced in \emph{i}; and, \emph{iii}) \emph{reshape} code in preparation for parallel pattern introduction;
 %    eliminate parallelism from the legacy-parallel \lstinline{pthreads} code, providing semi-automatic implementation of the first step of software restoration methodology;
     \item we evaluate these transformations on a set of benchmarks, demonstrating that removal of parallelism can allow us to manually derive structured parallel code that is comparable to the original legacy-parallel version in terms of performance, while being more portable, adaptive, and maintainable.
 \end{enumerate}
@@ -154,7 +86,7 @@ This paper makes the following specific research contributions:
 %\emph{Software refactoring} is the process of changing the structure of a program while preserving
 %its functional semantics in order, for example, to increase code quality, programming
 %productivity and code reuse. In our case, refactorings are source-to-source transformations of the code that are performed \emph{semi-automatically}, under the programmers guidance and possibly with his input. In our previous work, we pioneered refactoring to introduce parallelism~\cite{rpl}, where sequential code is transformed to introduce instances of parallel patterns. We have shown that this can lead to excellent speedups of the resulting code. Although the term refactoring was first introduced by Opdyke in his PhD thesis in 1992~\cite{opdyke}, and the concept goes at least as far back as the fold/unfold system proposed by Burstall and Darlington in 1977~\cite{darlington77}. In our case, refactorings are source-to-source transformations of the code that are performed \emph{semi-automatically}, under the programmer's guidance, and possibly with their input. 
-%ParaFormance \footnote{\url{http://www.paraformance.com}} is a refactoring tool-suite developed at the University of St Andrews that refactors C and C++ programs into parallel versions. It targets a number of different back-ends, including FastFlow, Intel Thread Building Blocks (TBB), OpenMP and GrPPI. It has a number of unique features and is integrated as a plugin into both Eclipse and Microsoft Visual Studio, presenting a menu of various options to its users.
+%ParaFormance \footnote{\url{http://www.paraformance.com}} is a refactoring tool-suite developed at the University of St Andrews that refactors C and C++ programs into parallel versions. It targets a number of different back-ends, including FastFlow, Intel Thread Building Blocks (TBB), OpenMP and GrPPI. It has a number of unique features and is integrated as a plug-in into both Eclipse and Microsoft Visual Studio, presenting a menu of various options to its users.
 
 % ParaFormance provides \emph{semi-automated refactorings} to introduce parallel patterns into sequential code; \emph{safety checking} features to find, statically, parallelism related bugs, such as race-conditions, deadlocks and memory collisions; and \emph{pattern discovery}, to find the hotspots in the program that are suitable for parallelism. All refactorings applied to source code in ParaFormance are fully undoable. Furthermore, all operations in ParaFormance come with a full preview feature, enabling users to see the result of the transformation before applying it. 
 %Figure~\ref{fig:safety1} gives a screenshot of the ParaFormance tool integrated into Eclipse. 
@@ -167,7 +99,7 @@ This paper makes the following specific research contributions:
 
 \begin{figure*}
 	\centering
-	\includegraphics[width=0.78\textwidth]{images/HLPP2020Paper.png}
+	\includegraphics[width=0.8\textwidth]{HLPP2020Paper.png}
 	\caption{Software Restoration Process}
 	\label{fig:SoftRest}
 \end{figure*}
@@ -180,17 +112,17 @@ for improving the structure of legacy-parallel C++ code by applying a series of 
 Software restoration is based on program transformation and code analysis and aims to:
 \begin{enumerate}
 \item \emph{discover} the instances of common patterns in legacy-parallel code;
-\item \emph{eliminate} \emph{undesirable} legacy parallel primitives from the same code; and
+\item \emph{eliminate} undesirable  legacy parallel primitives from the same code; and
 \item \emph{replace} the removed parallel primitives with instances of parallel patterns.
 \end{enumerate}
 \noindent
-The input to the Software Restoration process is legacy-parallel C/C++ code that is based on some low-level parallelism library, such as pthreads, and the output is the semantically-equivalent code based on parallel patterns. In this way, we obtain well-structured code based on a higher level of parallel abstraction, which is significantly more maintainable and adaptive while still preserving
-good performance of the original, highly-tuned parallel version. In this paper, we will focus on the TBB library as our target code. 
+The input to the Software Restoration process is a legacy-parallel C/C++ program that is based on some low-level parallelism library, such as pthreads, and the output is a semantically-equivalent C/C++ program based on parallel patterns. In this way, we obtain well-structured code based on a higher level of parallel abstraction, which is significantly more maintainable and adaptive while still preserving
+good performance of the original, highly-tuned parallel version. In this paper, we will focus on the TBB library as our target code. It is important to note, however, that transforming  the code into a \emph{patterned} form also increases the portability of the code and gives a wider opportunity for parallelisation using different techniques, libraries and pattern approaches. In this paper, we target TBB as just one example of a typical and common pattern library but the patternisation step could easily be replaced with other equivalent and more general frameworks; e.g.\ the \emph{Generic Reusable Parallel Pattern Interface} (GrPPI)~\cite{grppi}, which allows multiple different pattern backends to be targetted from a single interface. Indeed, prior work on refactoring to introduce GrPPI~\cite{grppirefac} patterns could easily be deployed at this stage, further increasing portability of the patterned code. 
 
 The Software Restoration methodology consists of a number of steps, each applying a class of code transformations, some of which are driven by the pattern discovery code analysis.  The whole process is depicted in Figure~\ref{fig:SoftRest}. In the below description, we will focus on the code transformation steps. We will use a synthetic, but representative, parallel pipeline as a running example in order to demonstrate the transformation. Listing~\ref{lst:simplePipe} presents aspects of the original parallel code with pthreads that are pertinent to this demonstration.
 
 %\begin{figure}
-\begin{lstlisting}[caption=Original Simple Pipeline Code,frame=single,label=lst:simplePipe]
+\begin{lstlisting}[caption=Original Simple Pipeline Code,label=lst:simplePipe]
 int main(int argc, char *argv[]) {
   ...  
   // create the workers, then wait for them to finish
@@ -242,18 +174,18 @@ void add_to_queue(queue_t *queue, int elem)
 
 \noindent
 In the above \lstinline|main| function (Lines 1--12), a pipeline of three stages is created using three threads. The stages are connected by queues such that all stages have an output queue, and stages two and three have an input queue. After creation, the \lstinline|main| function waits for the threads to finish their work (Lines 8--9) before continuing. In Lines 14--34, we show the function for the middle stage of the pipeline, which reads an integer from the input queue, increments it by one, then puts it into the output queue. The first and third stages have a similar structure, where the first stage acts as a source of integers for the second stage, and the third stage doubles its inputs before adding them to the final output queue.
-
-All the relevant synchronisation code for the queues can be found in two functions: \lstinline{add_to_queue} and \lstinline{read_from_queue}. Only \lstinline{add_to_queue} (Lines 36--37) is shown here; \lstinline{read_from_queue} is similar. Both functions use one mutex lock and two conditional variables. The latter are used for synchronisation when threads are waiting to insert an element into a full queue or for reading from an empty queue (e.g.\ at the start of the program). When a thread needs to add to the queue, it first acquires the queue lock and checks if the queue is full (Lines 38--41).
+%
+All the relevant synchronisation code for the queues can be found in two functions: \lstinline{add_to_queue} and \lstinline{read_from_queue}. Only \lstinline{add_to_queue} (Lines 36--47) is shown here; \lstinline{read_from_queue} is defined similarly. Both functions use one mutex lock and two conditional variables. The latter are used for synchronisation when threads are waiting to insert an element into a full queue or for reading from an empty queue (e.g.\ at the start of the program). When a thread needs to add to the queue, it first acquires the queue lock and checks if the queue is full (Lines 38--41).
 %in which case writing a new element is impossible. 
-When the queue is full, the thread releases the lock and waits for a signal that some other thread has consumed an element of this queue (\lstinline{queue->queue_cond_read} conditional variable, line 41). After this conditional variable is signalled, the thread enqueues the element, updating the queue counter and pointer in the process (Lines 42--44). Finally, the thread signals that an element has been added to the queue (\lstinline{queue->queue_cond_write} conditional variable, Line 45) and releases the queue lock (Line 46) before returning.
+When the queue is full, the thread releases the lock and waits for a signal that some other thread has consumed an element of this queue (\lstinline{queue->queue_cond_read} conditional variable, Line 41). After this conditional variable is signalled, the thread enqueues the element, updating the queue counter and pointer in the process (Lines 42--44). Finally, the thread signals that an element has been added to the queue (\lstinline{queue->queue_cond_write} conditional variable, Line 45) and releases the queue lock (Line 46) before returning.
 
 \paragraph{Parallelism Elimination.}
-The initial step, \emph{Initial Pattern Discovery}, analyses the original pthreaded code and discovers those parts of it, if any, that correspond to instances of parallel patterns. In our example, this stage identifies the linear pipeline created in Lines 4--6, with the pipeline stages being the functions: \lstinline{Stage1}, \lstinline{Stage2}, and \lstinline{Stage3}. 
+The initial step, \emph{Initial Pattern Discovery}, analyses the original pthreaded code and discovers those parts of it, if any, that correspond to instances of parallel patterns. In our example, this stage identifies the linear pipeline created in Lines 4--6, with the pipeline stages being the functions: \lstinline{Stage1}, \lstinline{Stage2}, and \lstinline{Stage3}. This process could be achieved by using a technique similar to the one described in~\cite{hybrid}
 Following pattern discovery, the first code transformation step is applied, where pthread operations and primitives are either removed or transformed, eliminating parallelism.
 %This includes the calls to \emph{pthreads} functions for thread creation, synchronisation, mutex management and so on.
-In Listing~\ref{lst:simplePipe}, this impacts \lstinline|main| and \lstinline|add_to_queue|; where Listing~\ref{lst:pipeParRem} shows the resulting code.
+In Listing~\ref{lst:simplePipe}, this impacts \lstinline|main| and \lstinline|add_to_queue|. Listing~\ref{lst:pipeParRem} shows the resulting code.
 
-\begin{lstlisting}[caption=Simple Pipeline Code with Parallelism Removed, frame=single, label=lst:pipeParRem]
+\begin{lstlisting}[caption=Simple Pipeline Code with Parallelism Removed, label=lst:pipeParRem]
 int main(int argc, char *argv[]) {
   ...
   // Calls to pthread_create are converted to function calls.
@@ -280,7 +212,7 @@ void add_to_queue(queue_t *queue, int elem) {
 %
 %Whilst all pthread operations have been removed or transformed, and the program is now sequential, t
 %
-We note that the Parallelism Elimination stage \emph{does not guarantee that a program's semantics are preserved} and thus errors may be introduced.
+We note that the Parallelism Elimination stage \emph{does not guarantee that a program's functional behaviour is preserved} and thus errors may be introduced.
 %
 %Accordingly, as in our running example, errors may be introduced.
 %
@@ -300,14 +232,11 @@ Because the semantics of the program have changed following Parallelism Eliminat
 %As observed in the previous step, Parallelism Elimination might result in code that is broken and, hence, not semantically equivalent to the original legacy-parallel code.
 %
 Our example is just one of many in which merely removing pthread constructs introduces errors (see Section~\ref{sec:evaluation} for more examples). The next step in Software Restoration is, therefore, to repair the potentially broken code produced by Parallelism Elimination. In general, due to the potential complexity of this repair stage, multiple transformations may need to be applied.
-%
-%In our pipeline example, this is actually the most complicated step of the whole methodology and the resulting code is given in Listing~\ref{lst:pipeRepaired}.
-
-In order to effect repairs in our running example it is necessary to stop the first stage from overflowing its output queue. This can be achieved by merging the loops found in \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3|, thereby resulting in loop where the operations in stages two and three are applied to each integer produced by stage one in the same iteration that produces it. Listing~\ref{lst:pipeRepaired} represents the result of this process, where \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| are first \emph{lifted} into a new function, \lstinline|Pipe|, and subsequently \emph{unfolded}. The \lstinline|for|-loops exposed by this unfolding are then merged, allowing all three stages to be executed within a single iteration. This avoids the first stage overflowing its output queue, and consequently, results in a program that is sequential but semantically equivalent to the original pthreaded program.
+In order to effect repairs in our running example it is necessary to stop the first stage from overflowing its output queue. This can be achieved by merging the loops found in \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3|, thereby resulting in a loop where the operations in stages two and three are applied to each integer produced by stage one in the same iteration that produces it. Listing~\ref{lst:pipeRepaired} represents the result of this process, where \lstinline|Stage1|, \lstinline|Stage2|, and \lstinline|Stage3| are first \emph{lifted} into a new function, \lstinline|Pipe|, and subsequently \emph{unfolded} (i.e. unfolding in the transformational sense, \`{a} la Burstall and Darlington~\cite{darlington77}). The \lstinline|for|-loops exposed by this unfolding are then merged, allowing all three stages to be executed within a single iteration. This avoids the first stage overflowing its output queue, and consequently, results in a program that is sequential but semantically equivalent to the original pthreaded program.
 
 %it is necessary to immediately apply the second and third stages of the pipeline to each integer produced by the first stage.
 
-\begin{lstlisting}[caption=Simple Pipeline Code after Code Repair, frame=single, label=lst:pipeRepaired]
+\begin{lstlisting}[caption=Simple Pipeline Code after Code Repair, label=lst:pipeRepaired]
 void Pipe(void** a0, void* a1, void* a2, void* a3) {
   int my_output1, i1;
   pipeline_stage_queues_t *myQueues1 = (pipeline_stage_queues_t *)a1;
@@ -364,7 +293,7 @@ The result of the Program Shaping stage on our running example can be found in L
 
 %After the code repair step, the resulting code will be working sequential C/C++ code that can be compiled, and which can be transformed into the patterned parallel version. However, some artefacts of the legacy parallelisation may still remain in the code. In our example, these are the queues between stages of the pipeline computation, but in other examples it can also be custom-build representations of flat data structures, such as arrays. These artefacts are redundant and might actually hinder alternative (and possibly better) parallelisations of the code. The next step is, therefore, to eliminate them and restore the code in as clean state as it is possible. For our example, the resulting code (\lstinline{main} and \lstinline{Stage2} functions) are given in Listing~\ref{lst:pipeClean}.
 
-\begin{lstlisting}[caption=Clean Sequential Simple Pipeline Code, frame=single, label=lst:pipeClean]
+\begin{lstlisting}[caption=Clean Sequential Simple Pipeline Code, label=lst:pipeClean]
 int S1(int i1) { ... }
 
 int S2(int my_output1) { ... }
@@ -431,41 +360,25 @@ This results in final, patterned parallel code that is semantically equivalent t
 \label{sec:assumptions}
 
 In this paper, we demonstrate our methodology on a subset of pipelines defined using pthreads. Whilst the refactorings described below apply only to this subset, they can be extended to facilitate a more general application of the restoration process.
-
-We assume that a valid pipeline (i.e.\ a pipeline that can be restored using the below refactorings) is linear, that all tasks are generated by the first stage, and that no subsequent stages will create or destroy tasks. Moreover, we assume that the first stage of the pipeline will produce an end-of-stream (EOS) token, which is propagated through the pipeline, and results in a stage halting when it is received as input.
+%
+We assume that a valid pipeline (i.e.\ a pipeline that can be restored using the below refactorings) is linear, that all tasks are generated by the first stage, and that no subsequent stages will create or destroy tasks. Moreover, we assume that the first stage of the pipeline will produce an end-of-stream (\lstinline{EOS}) token, which is propagated through the pipeline, and results in a stage halting when it is received as input.
 %
 A valid pipeline is assumed to be set up in a single function containing a sequence (or loop) of \lstinline|pthread_create| calls. For each \lstinline|pthread_create(ti,...)| call there must be a corresponding \lstinline|pthread_join(ti,...)| call in the same function.
-%
-%\begin{lstlisting}
-%t1 f(...) {
-%  ...
-%  pthread_create(t1,attr1,f1,args1);
-%  ...
-%  pthread_create(tn,attrn,fn,args2);
-%  ...
-%  pthread_join(t1,r1);
-%  ...
-%  pthread_join(tn,rn);
-%  ...
-%}
-%\end{lstlisting}
-%
-%\noindent
 We assume that each stage of a pipeline is run on a single thread. However, no assumptions are made regarding thread attributes, arguments passed to the function upon thread creation, or the second argument passed to \lstinline|pthread_join|.
-
+%
 Tasks are sent between stages in pipelines via intermediate queues.
 %
 Each stage of a pipeline is assumed to have an input queue, $q_1$, and an output queue, $q_2$, given that $q_1 \neq q_2$ and the output queue of stage $i$ is the input queue of stage $i+1$.
 %
 Pipeline stages may only communicate via these intermediate queues; for simplicity, we assume that (intermediate) stages do not access global variables.
-
+%
 Queues are assumed to be \emph{cyclic}. If the queue is full, and the implementation does not wait for an element to be read before adding a new element, it is assumed that the queue overwrites (unread) elements. We assume that queues use \lstinline|pthread_cond_wait|, \lstinline|pthread_cond_signal|, \lstinline|pthread_mutex_lock|, and \lstinline|pthread_mutex_unlock| operations only.
 %
 These restrictions are to ensure that, following Parallelism Elimination, the behaviour of the pipeline breaks in a consistent way. Any queue update functions should not be recursive.
 %
 Whilst we make no assumption on the size of queues, the interesting case is when queues are smaller than the total number of tasks passing through the pipeline.
 %An example of a function that adds elements to an intermediate queue can be found on Lines 12--17 in Listing~\ref{lst:pipeParRem}.
-
+%
 Each stage of a valid pipeline is assumed to contain a loop that retrieves input and produces a modified version of it as output.
 %
 \begin{lstlisting}
@@ -487,13 +400,13 @@ void *Stage2(void *arg) {
 \end{lstlisting}
 %
 \noindent
-The \lstinline|for|-loop is assumed to read input from the stage's input queue for each iteration, where the test expression is a disjunction permitting both EOS token and valid inputs (for some definition of valid). The test expression may be simplified by treating the EOS as a valid input.
+The \lstinline|for|-loop is assumed to read input from the stage's input queue for each iteration, where the test expression is a disjunction permitting both \lstinline{EOS} token and valid inputs (for some definition of valid). The test expression may be simplified by treating the \lstinline{EOS} as a valid input.
 %
-The body of the loop is assumed to comprise an \lstinline|if|-statement that checks for the EOS token, represented here by a preprocessor macro. When the input is not the EOS token, it is modified (Line 8) and added to the output queue (Line 9).
+The body of the loop is assumed to comprise an \lstinline|if|-statement that checks for the \lstinline{EOS}  token, represented here by a preprocessor macro. When the input is not the \lstinline{EOS}  token, it is modified (Line 8) and added to the output queue (Line 9).
 %
-Conversely, when the input is the EOS token, it is propagated to the next stage (Line 11) and a \lstinline|break| statement used in order to halt the stage (Line 12). Should the EOS token be handled incorrectly and not halt the stage, due to our assumptions on the nature of the intermediate queues, the \lstinline|for|-loop will wait indefinitely for input that will never arrive. Whilst we permit the occurrence of \lstinline|break| statements only in the locations specified above, we assume that no part of the pipeline has \lstinline|continue| or \lstinline|goto| statements.
+Conversely, when the input is the \lstinline{EOS}  token, it is propagated to the next stage (Line 11) and a \lstinline|break| statement used in order to halt the stage (Line 12). Should the \lstinline{EOS}  token be handled incorrectly and not halt the stage, due to our assumptions on the nature of the intermediate queues, the \lstinline|for|-loop will wait indefinitely for input that will never arrive. Whilst we permit the occurrence of \lstinline|break| statements only in the locations specified above, we assume that no part of the pipeline has \lstinline|continue| or \lstinline|goto| statements.
 
-The first stage differs in that the input is not retrieved from an input queue, but tasks are generated in a \lstinline|for|-loop. For example, in \lstinline|Stage1|,
+The first stage differs in that the input is not retrieved from an input queue, but tasks are generated in a \lstinline|for|-loop. For example, in \lstinline|Stage1|
 %
 \begin{lstlisting}
 void *Stage1(void *arg) {
@@ -514,7 +427,7 @@ an array of inputs is iterated over and each element is sent to the second stage
 %
 We assume that the \lstinline|for|-loop in the first stage is finite and that termination is controlled by the test expression and not through a conditional statement in the body of the loop.
 %
-Once all tasks have been generated, the first stage will emit an EOS token and no further iterations of the loop occur.
+Once all tasks have been generated, the first stage will emit an \lstinline{EOS}  token and no further iterations of the loop occur.
 
 
 %\begin{itemize}
@@ -703,9 +616,12 @@ Once all tasks have been generated, the first stage will emit an EOS token and n
 
 %We propose a series of program transformations to facilitate the restoration of C programs that have been previously parallelised using low-level pthread parallelism techniques. 
 %
-The following transformations are grouped according to the stages in Section~\ref{sec:methodology} and all are apply to C programs that adhere to the assumptions in Section~\ref{sec:assumptions}.
+The following transformations are grouped according to the stages in Section~\ref{sec:methodology} and all  apply to C programs that adhere to the assumptions in Section~\ref{sec:assumptions}.
 %
-In addition to the following, standard transformations may also facilitate the restoration process. For instance, the transformation to \emph{unfold} a function definition~\cite{darlington77} is used in both Code Repair and Shaping stages; e.g.\ in the former, it allows loops to be merged, and in the latter, it allows the elimination of intermediate queues. The \emph{extract method}~\cite{DBLP:books/daglib/0019908} transformation can be similarly used to lift a pipeline into a self-contained function, or to lift its individual stages (back) into separate functions.
+In this paper, we do not attempt to prove that our transformations preserve functional behaviour; indeed, some intentionally do not. Such proofs are left to future work, where they can be properly explored in depth. Instead, and where expected, we conjecture that our transformations preserve functional behaviour when they are applied to code that both adheres to the assumptions in Section~\ref{sec:assumptions} and that meets the pre-conditions of the individual refactoring. For example, commutativity of loops in \emph{Merge \lstinline|for|-loops} (Section~\ref{sec:refac:repair}). It is our intention that these assumptions and pre-conditions are sufficiently strong so as to render post-conditions and dynamic correctness checks unnecessary. Proof that this property holds for our refactorings is outside of the scope of this paper and will be considered as part of future work alongside proofs of general soundness.
+
+In addition to the following transformations, standard refactorings may also facilitate the restoration process. For instance, the transformation to \emph{unfold} a function definition~\cite{darlington77} is used in both Code Repair and Shaping stages; e.g.\ in the former, it allows loops to be merged, and in the latter, it allows the elimination of intermediate queues. The \emph{extract method}~\cite{DBLP:books/daglib/0019908} transformation can be similarly used to lift a pipeline into a self-contained function, or to lift its individual stages (back) into separate functions.
+%
 
 %In this section we propose three refactorings to \emph{restore} C applications that have been previously parallelised using low-level pthread parallelism techniques. We divide our restoration refactorings into specific examples of eliminating \emph{pipeline} parallel (described in Section~\ref{sec:removepipeline}), and removing \emph{farm} parallelism (described in Section~\ref{sec:removefarm}).
 %These restoration refactorings on both farm and pipelines are categorised by i) \emph{eliminating} the existing pthread concurrency by removing the calls to pthread functions, to they can be later replaced with calls to structured high-level algorithmic skeletons (described in Section~\ref{sec:removepthread}), ii) \emph{repairing} the eliminated versions of the code, which may have some bugs introduced by removing the underlying concurrency logic, and iii) \emph{shaping} the code, into order to structure it in a way that parallel patterns can be easily introduced. 
@@ -823,7 +739,7 @@ in the same compound statement can be merged such that the result is a single lo
 
 %To illustrate this transformation we use the below code, derived from the synthetic simple pipeline example in Section~\ref{sec:methodology}.
 %
-\begin{lstlisting}[caption=Intermediate Code Repair Stage for Simple Pipeline Example, label=lst:refac:repair:before, frame=single]
+\begin{lstlisting}[caption=Intermediate Code Repair Stage for Simple Pipeline Example, label=lst:refac:repair:before]
 void Pipe(void* a1, void* a2, void* a3) {
   int my_output1, i1;
   ...
@@ -845,6 +761,7 @@ void Pipe(void* a1, void* a2, void* a3) {
       ...
     } else {
       add_to_queue(myOutputQueue2, EOS);
+      break;
     }
   }
 
@@ -867,7 +784,7 @@ Listing~\ref{lst:refac:repair:before} builds on the example in Listing~\ref{lst:
 %
 It is possible to merge all three loops since the statements in between the loops can be safely executed prior to the first and second loops.
 %
-\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}, label=lst:refac:repair:after, frame=single]
+\begin{lstlisting}[caption=Following Merging of loops in Listing~\ref{lst:refac:repair:before}, label=lst:refac:repair:after]
 void Pipe(void** a0, void* a1, void* a2, void* a3) {
   int my_output1, i1;
   ...
@@ -897,94 +814,30 @@ void Pipe(void** a0, void* a1, void* a2, void* a3) {
 %
 Since we assume that new tasks are only produced by the first stage and that all subsequent stages neither generate nor destroy tasks, it follows that the number of iterations for the first loop will be equal to the number of iterations for subsequent loops in the original pipeline.
 %
-Consequently, the initialisation statement, test expression, and iteration expression of the merged loop will be those of the first loop; here, \lstinline|i1 = MAXDATA|, \lstinline|i1>=-1|, and \lstinline|i1--|, respectively.
+Consequently, the initialisation statement, test expression, and iteration expression of the merged loop will be those of the first loop; here, \lstinline|i1 = MAXDATA|, \lstinline|i1>=0|, and \lstinline|i1--|, respectively.
 %
 The bodies of the individual loops are included in the same order as the original loops themselves. Since the merged loop uses its initialisation statement, test expression, and iteration expression, the body of the first loop is included unchanged.
 %
-Bodies of subsequent loops, however, are preceded by their update statement. For example, the body of the second loop is preceded by the assignment to \lstinline|my_input2| on Line 12 in Listing~\ref{lst:refac:repair:after} which is taken from the update statement on Line 18 in Listing~\ref{lst:refac:repair:after}. This ensures that the input queue for each stage is read from only when a task has been added to that queue by the preceding stage.
+Bodies of subsequent loops, however, are preceded by their update statement. For example, the body of the second loop is preceded by the assignment to \lstinline|my_input2| on Line 12 in Listing~\ref{lst:refac:repair:after} which is taken from the update statement on Line 18 in Listing~\ref{lst:refac:repair:before}. This ensures that the input queue for each stage is read from only when a task has been added to that queue by the preceding stage.
 %
-In addition to the inclusion of the update expression, the \lstinline|break| statements from the original \lstinline|for|-loops are removed, leaving the propagation of the EOS token in all but the final stage. In the final stage of our pipeline (Lines 19--22) we remove the entire \lstinline|else| branch in Listing~\ref{lst:refac:repair:after} since it contains only the \lstinline|break| statement on Line 35 in Listing~\ref{lst:refac:repair:before}. Whilst the removal of these \lstinline|break| statements is not strictly necessary, since they will only be evaluated when the first stage emits an EOS token once all other tasks have been processed, they are removed because they are redundant now that the termination of the merged loop is controlled by the first stage of the pipeline, which will terminate after generating the EOS token.
-
-
-%However, the bodies of the subsequent loops are included s.t.\ they are enclosed in an \lstinline|if|-statement and preceded by an assignment statement. The condition of a given \lstinline|if|-statement is the text expression of the respective loop. \textcolor{blue}{There's a point here about how because we assume that all tasks will flow through as an assumption it stands that the condition will not prematurely halt the pipeline, and so we don't need the }
-
-%However, the bodies of the subsequent loops are included by wrapping them in an \lstinline|if|-statement, whose condition is taken from the termination expression of the original loop. Additionally, since we do not include the update expressions  For example, the loop over Lines 16--24 in Listing~\ref{lst:refac:repair:before} representing the second stage of the pipeline is transformed into the statements over Lines 12--19 of Listing~\ref{lst:refac:repair:after}.
-
-
-%\noindent
-%\hrulefill
-%%
-%\begin{itemize}
-%\item The first stage remains the same. This is possible because we're using the initialisation statement, test expression, and update statement of the first loop for the merged loop. Since it also contains no break, continue, or goto statements by assumption, we are entirely safe here.
-%\item Subsequent stages are wrapped in an if statement to ensure that they only fire when they are supposed to. (I wonder if this is actually redundant because all tasks must be dealt with so they all have the same number of iterations?) The condition for the if statement is taken from the condition for the relevant loop.
-%\item You can't put the calls to read from queue in the initialisation statement because the queues will just return gibberish. Similarly, you can't use the calls in the iteration expression because it will return gibberish on the first two iterations for the third stage (in this specific example). Since you actually only need to read from the queue when you know that the previous stage has pushed something to the queue, it makes sense that you put the iteration expression of the loop before the if statement.
-%\item The break statements in the subsequent stages will be simply be removed. We leave the statements that propagate the EOS token because I believe we'll be needing them later when converting\dots
-%\item Actually, I'm not so sure. The problem we have here is that you need to get rid of the EOS at some point as it's not an output of the pipeline itself. For TBB, the EOS is a call to \lstinline|stop()| in the first stage of the pipeline. I wonder, then, if we could get rid of the EOS parts of the other stages and put a break in where we emit the EOS itself in the first stage? Then, we could convert the sole remaining break statement to \lstinline|stop|. The difficulty with this, however is whether the break would work when you lift the first stage into a function... Something to check, I think. Also, we should check how we're going from sequential code to TBB to make sure we're not missing something obvious. Ah, all we did between pth.8 and pth.9 was add an else onto the first if so I think we could probably just get rid of it entirely, adjusting the loop condition accordingly to get rid of the iteration with the EOS in it. Don't know what's best.
-%\end{itemize}
-%
-%\noindent
-%\hrulefill
-
-
-%initializationStatement; testExpression; updateStatement
-
-%\begin{itemize}
-%\item The initial expression for the for loop doesn't matter; it's going to be the initial expression for the first loop as that is what sets everything off, and since the other `input' arguments aren't going to be initialised yet, it would be foolish to do so.
-%\item Assumption here that the first loop represents a generator. It will stop looping if it stops/hangs at one point. It shouldn't hang because we've removed the pthread stuff; ah, but what if that pthread stuff is outside of the pipeline? Reading from a file will just continue returning EOF, I think, so that's not a problem. So, we make it so that the update function for the first loop will \emph{always} succeed, it will not fail (i.e. error out), and it will not wait on a resource.
-%\item The idea is that the first for loop pertains to the first stage of the pipeline; that's obvious enough.
-%\item Note that you \emph{cannot} put the iterators of later loops in the merged loop iterator because it will continue to loop infinitely (because there's no waiting when the loop is full/empty). You \emph{could} adjust the read operation, which we will suggest, but that should probably be an additional/separate refactoring or transformation, rather, which I don't want to go into here, because that's just inviting problems. Also, there's not much point because our end goal \emph{isn't} sequentialisation, but rather updating the parallelism so we're getting rid of the intermediate queues entirely.
-%\item The first stage of the pipeline must represent a bound on the number of iterations, because otherwise the nature of the intermediate queues will continue to cycle through nonsense elements. (which is what causes the errors). So, let's say that the number of iterations of the first loop is a bound on those that follow. This is a sensible assumption because you're not going to get out more than you put in... or you could do, if your successive stages also generate input for the pipeline by, e.g., duplicating their input. I think we have to assume that for each stage barring the initial stage of the pipeline, you have one input and one output, and where the initial stage only has a single output. (All of this is per iteration.)
-%\item I think this is an okay assumption because we're converting this into a fairly standard TBB pipeline. (I wonder if you can create a TBB pipeline where a stage may produce more output onto the output queue. It seems that you can't: `However, Filter objects in TBB can only take a single input and produce a single output.` Others have gotten around this using nested pipelines. See `Expressing Pipeline Parallelism Using TBB Constructs')
-%\item This could be extended later to consider what happens when you have stages that are allowed to either remove inputs or add inputs to the stream. I think you'd have to assume some sort of adjustment to the intermediate queues, so that they return an empty operator and you would stop there.
-%\item Alternatively, you might want to have it so that there are loops for each of the successive stages within the inner loops, but then that might cause a problem too what with overflow \&c. so you'd want to have a flat loop that you can easily deal with.
-%\item We assume linear pipelines only. Intermediate queues may be of different sizes, but the number of tasks passed through the pipeline should be constant (i.e.\ each task generated by the first stage of the pipeline must travel through each stage of the pipeline and be introduced to the output queue).
-%\end{itemize}
-
-
-%
-%The bounding condition of the merged loop is formed of the disjunction of the conditions of the original loops. Similarly, the body of the merged loop comprises the bodies of the original loops wrapped in \lstinline{if}-statements. The condition of one of these \lstinline{if}-statements is the \emph{weakened} condition of the respective original \lstinline{do}-loop; e.g.\ the condition \lstinline|my_input_2>0| above is weakened to \lstinline|my_input_2>=0|. This weakening is necessary, since the body of a \lstinline{do}-loop is executed before the bounding condition is checked.
-%%
-%% Someone is going to ask about weakening rules and how is 'weakening' defined for all the things. Annoying.
-%%
-%Moreover, because the loop body is guaranteed to execute once, it is possible that a variable used in the bounding condition may be declared outside of the loop, but only initialised within it. For example, in the second and third stages above, neither \lstinline|my_input_2| nor \lstinline|my_input_3| are initialised before the assignment \emph{inside} the body of their respective loops (Lines 15 \& 23, Listing~\ref{lst:refac:repair:before}). In order to merge these loops such that the second and third stages will execute, we move the aforementioned assignment statements outside of the introduced \lstinline{if}-statement around the loop body (Lines 12 \& 18, Listing~\ref{lst:refac:repair:after}). Such assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop.
-%%
-%% 'assignment statements can only be lifted out of the body if they themselves depend upon variables already assigned outside of the loop' is to stop us from lifting too much of the code out of the if-statement; you only want the bare minimum.
-%%
-%% Question: what happens when you move something outside of the body of the if statement and the loop still allows you to run that bit of code when it wouldn't normally (according to that loop bound). Maybe it would've been better to simply convert these to for-loops after all...
-%%
-%% Converting a do-loop to a for loop might be the better approach.
-%%
-%Variables are renamed in the bodies of the loops as necessary.
-%%
-%%\textcolor{blue}{What if one variable (e.g.\ some iterator \lstinline|i|) is reused between loops? Note that any (re)declarations of variables (between stages) would have been dealt with at the unfolding step.}
-
-% Note to self: seeing as this changes the behaviour of the program; how would you even account for all the possible side-conditions (formally)? You'd need to define the desired behaviour that you'd end up with. You'd probably need to be very restrictive here because otherwise you could end up allowing lots of weird behaviours; the goal of this is to make the behaviour more sensible, so... yes, you could define your transformation to do anything you desired but that doesn't necessarily a useful transformation make.
-
-% Note to self: whilst Parallelism Elimination and Code Repair are transformations individually, together they should form a refactoring.
-
-
-% I am concerned that we're spreading ourselves too generally. I fell like we should have constrained ourselves to pipelines and farms that conform to specific requirements/assumptions. Then we could always say that the requirements/assumptions can be weakened accordingly.
-
-
-%\textcolor{red}{Note that we really need to eliminate the EOS token prior to removing the intermediate queues. The problem arises because we need to pair \lstinline{add_to_queue} operations with \lstinline|read_from_queue| operations and that only works at present because we've only \emph{one} of each at the end and beginning of each unfurled stage. It should really be separate from Merge Loops.}
-
+In addition to the inclusion of the update expression, the \lstinline|break| statements from the original \lstinline|for|-loops are removed, leaving the propagation of the \lstinline{EOS}  token in all but the final stage. In the final stage of our pipeline (Lines 19--22) we remove the entire \lstinline|else| branch in Listing~\ref{lst:refac:repair:after} since it contains only the \lstinline|break| statement on Line 34 in Listing~\ref{lst:refac:repair:before}. Whilst the removal of these \lstinline|break| statements is not strictly necessary, since they will only be evaluated when the first stage emits an \lstinline{EOS}  token once all other tasks have been processed, they are removed because they are redundant now that the termination of the merged loop is controlled by the first stage of the pipeline, which will terminate after generating the \lstinline{EOS}  token.
 
 \subsection{Program Shaping.}
 \label{sec:refac:shaping}
 
-Program Shaping represents the broadest stage in the process and presents the programmer with the largest range of choices in terms of transformations that may be effected. In addition to \emph{unfolding} definitions and creating new functions via \emph{extract method}, other standard transformations may be applied, e.g.\ \emph{dead-code elimination}~\cite{Kennedy:DeadCodeElimination}, in order to improve or simplify the structure of the code. In order to remove aspects of the code that represent optimisations enacted for the legacy parallelisation, both existing and novel transformations may be necessary. Novel transformations may include the unchunking of data, the removal intermediate, and now redundant, queues between stages, and a removal of the EOS token. In line with our running example, we propose transformations to remove EOS tokens and to remove intermediate queues.
+Program Shaping represents the broadest stage in the process and presents the programmer with the largest range of choices in terms of transformations that may be effected. In addition to \emph{unfolding} definitions and creating new functions via \emph{extract method}, other standard transformations may be applied, e.g.\ \emph{dead-code elimination}~\cite{Kennedy:DeadCodeElimination}, in order to improve or simplify the structure of the code. In order to remove aspects of the code that represent optimisations enacted for the legacy parallelisation, both existing and novel transformations may be necessary. Novel transformations may include the unchunking of data, the removal intermediate, and now redundant, queues between stages, and a removal of the \lstinline{EOS}  token. In line with our running example, we propose transformations to remove \lstinline{EOS}  tokens and to remove intermediate queues.
 
 %and a tupling (and potential localisation) of arguments to present transformations that introduce algebraic skeletons with a simple composition of single-parameter functions. In line with our running example, we propose transformations to remove intermediate queues, and to merge arguments.
 
-\paragraph{Remove EOS Token from Merged Loops.}
+\paragraph{Remove \lstinline{EOS}  Token from Merged Loops.}
 
-Intuitively, we assume that Remove EOS Token from Merged Loops applies to the result of Merge Loops. Since termination of all stages is controlled solely by the merged loop, the EOS token is redundant and can be removed to that the resulting restored pipeline doesn't perform unnecessary work.
+Intuitively, we assume that Remove \lstinline{EOS}  Token from Merged Loops applies to the result of Merge Loops. Since termination of all stages is controlled solely by the merged loop, the \lstinline{EOS}  token is redundant and can be removed so that the resulting restored pipeline doesn't perform unnecessary work.
 %
-By our assumption, at the beginning of the \lstinline|for|-loop, there is an \lstinline|if|-statement that determines whether the iterator being generated by the first stage is genuine output or the EOS token. This \lstinline|if|-statement is replaced by the branch of the \lstinline|if|-statement that produces genuine output. Additionally, the text expression of the merged loop is replaced by the condition of the \lstinline|if|-statement being removed. This results in the merged loop executing one fewer iteration and the first stage of the (now-removed) pipeline no longer adding the EOS token to its output queue.
+By our assumption, at the beginning of the \lstinline|for|-loop, there is an \lstinline|if|-statement that determines whether the iterator being generated by the first stage is genuine output or the \lstinline{EOS}  token. This \lstinline|if|-statement is replaced by the branch of the \lstinline|if|-statement that produces genuine output. Additionally, the test expression of the merged loop is replaced by the condition of the \lstinline|if|-statement being removed. This results in the merged loop executing one fewer iteration and the first stage of the (now-removed) pipeline no longer adding the \lstinline{EOS}  token to its output queue.
 %
-For all other stages of the pipeline, we replace each stage's \lstinline|if|-statement with their output branches, thus removing the EOS token behaviour.
+For all other stages of the pipeline, we replace each stage's \lstinline|if|-statement with their output branches, thus removing the \lstinline{EOS}  token behaviour.
 
-\begin{lstlisting}[caption=Following application of Remove EOS Token from Merged Loops to Listing~\ref{lst:refac:repair:after}, label=lst:refac:removeEOS]
+\begin{lstlisting}[caption=Following application of Remove \lstinline{EOS}  Token from Merged Loops to Listing~\ref{lst:refac:repair:after}, label=lst:refac:removeEOS]
 void Pipe(void** a0, void* a1, void* a2, void* a3) {
   int my_output1, i1;
   ...
@@ -1004,7 +857,7 @@ void Pipe(void** a0, void* a1, void* a2, void* a3) {
 \end{lstlisting}
 %
 \noindent
-Listing~\ref{lst:refac:removeEOS} gives the result of applying Remove EOS Token from Merged Loops to the code in Listing~\ref{lst:refac:repair:after}. Here, the original test expression of the merged loop, \lstinline|i1>=0| (Line 4 Listing~\ref{lst:refac:removeEOS}), has been replaced with the condition of the \lstinline|if|-statement from the first stage of the pipeline, \lstinline|i1>0| (Line 5, Listing~\ref{lst:refac:removeEOS}). That \lstinline|if|-statement has itself been replaced by its true branch. The \lstinline|if|-statements for the other two stages (Lines 13--17 and 20--22, Listing~\ref{lst:refac:removeEOS}) have similarly been replaced by their true branches, since their false branches handle the EOS token.
+Listing~\ref{lst:refac:removeEOS} gives the result of applying Remove \lstinline{EOS}  Token from Merged Loops to the code in Listing~\ref{lst:refac:repair:after}. Here, the original test expression of the merged loop, \lstinline|i1>=0| (Line 4 Listing~\ref{lst:refac:removeEOS}), has been replaced with the condition of the \lstinline|if|-statement from the first stage of the pipeline, \lstinline|i1>0| (Line 5, Listing~\ref{lst:refac:removeEOS}). That \lstinline|if|-statement has itself been replaced by its true branch. The \lstinline|if|-statements for the other two stages (Lines 13--17 and 20--22, Listing~\ref{lst:refac:removeEOS}) have similarly been replaced by their true branches, since their false branches handle the \lstinline{EOS}  token.
 %Consequently, \lstinline|Pipe| no longer contains any \lstinline|break| statements in Listing~\ref{lst:refac:removeEOS}.
 
 %\begin{itemize}
@@ -1031,9 +884,9 @@ Following the application of Merge Loops the intermediate queues become redundan
 %
 They can be removed by inspecting, matching, and transforming \emph{read}, \emph{write}, and \emph{update} operations pertaining to those queues.
 %
-In our recurring example we begin this process having removed the EOS token, and having \emph{unfolded} both \lstinline|add_to_queue| and \lstinline|read_from_queue| operations. Note that the \lstinline|add_to_queue| operation in the third stage is not unfolded since this is the output of the pipeline itself.
+In our recurring example we begin this process having removed the \lstinline{EOS}  token, and having \emph{unfolded} both \lstinline|add_to_queue| and \lstinline|read_from_queue| operations. Note that the \lstinline|add_to_queue| operation in the third stage is not unfolded since this is the output of the pipeline itself.
 %
-\begin{lstlisting}[frame=single]
+\begin{lstlisting}
 void Pipe(void** a0, void* a1, void* a2, void* a3) {
   int my_output1, i1;
   ...
@@ -1096,7 +949,7 @@ An unpaired \emph{read} that is part of an \emph{update}, e.g.\ \lstinline|capac
 %
 When applied, the above transformations result in the removal of the two intermediate queues.
 %
-\begin{lstlisting}[frame=single]
+\begin{lstlisting}
 void Pipe(void** a0, void* a1, void* a2, void* a3) {
   ...
   for (i1 = MAXDATA ; i1 > 0; i1--) {
@@ -2005,18 +1858,18 @@ void Pipe(void** a0, void* a1, void* a2, void* a3) {
 \section{Evaluation}
 \label{sec:evaluation}
 
-In this section, we present an evaluation of our restoration methodology on a number of examples of pthreaded C and C++ applications taken from a variety of domains, including image convolution, nqueens, cholesky decomposition, blackscholes, pgpry, mandelbrot and matrix multiplication. For each benchmark we evaluate the effectiveness of our technique using standard metrics, such as McCabe's Cyclomatic Complexity~\cite{10.1109/TSE.1976.233837}, lines of code and difference in runtimes between the original pthread version and the restored TBB version, using the maximum number of available cores; these results are summarised in Table~\ref{fig:benchmarks2}, which also labels if each benchmark is a standard task from implementation (F) or a pipeline, where each stage can also be farmed (P). All of our execution experiments are conducted on a server with Intel Xeon E5-2690 CPU with 28 cores, running at 2.6 GHz with 256 GB of RAM, with the Scientific Linux 6.2 operating system.
+In this section, we present an evaluation of our restoration methodology on a number of examples of pthreaded C and C++ applications taken from a variety of domains, including image convolution, nqueens, cholesky decomposition, blackscholes, pgpry, mandelbrot and matrix multiplication \footnote{Repository of examples available at \url{https://github.com/Paraformance/restoration}}. For each benchmark we evaluate the effectiveness of our technique using standard metrics, such as McCabe's Cyclomatic Complexity~\cite{10.1109/TSE.1976.233837}, lines of code and difference in runtimes between the original pthread version and the restored TBB version, using the maximum number of available cores; these results are summarised in Table~\ref{fig:benchmarks2}, which also labels if each benchmark is a standard task from implementation (F) or a pipeline (P), where each stage can also be farmed. All of our execution experiments are executed 5 times and conducted on a server with Intel Xeon E5-2690 CPU with 28 cores, running at 2.6 GHz with 256 GB of RAM, with the Scientific Linux 6.2 operating system.
 
 \subsection{Image convolution}
 
 Image Convolution  is a technique widely used in image processing applications for
-blurring, smoothing and edge detection. We consider an instance of the image convolution from video processing applications, where we are given a list of images that are rocessed by applying a filter. Applying a filter to an image consists of computing a scalar product of the filter weights with the input pixels within a window surrounding each of the output pixels:
+blurring, smoothing, and edge detection. We consider an instance of the image convolution from video processing applications, where we are given a list of images that are processed by applying a filter. Applying a filter to an image consists of computing a scalar product of the filter weights with the input pixels within a window surrounding each of the output pixels:
 	
 \begin{equation}\label{eqn:01}
 \textit{out}(i,j)=\sum_{m}\sum_{n} \textit{in}(i-n,j-m)\times \textit{filt}(n,m)
 \end{equation}
 
-\begin{lstlisting}[label=convo0, caption={Original Convolution with PThreads}, frame=single]
+\begin{lstlisting}[label=convo0, caption={Original Convolution with PThreads}]
 void add_to_queue(queue_t *queue, task_t elem)
 {
   /* Same as in Listing 1 */
@@ -2133,9 +1986,9 @@ int main (int argc, char **argv)
 \noindent
 For the convolution example, we start off with a pthreaded version in Listing~\ref{convo0}, with a similar structure as the other pipelined examples in this paper, and outlined in Section~\ref{sec:methodology}. After setting up the task queue for the first stage of the pipeline (e.g.~by reading a list of names of files with images), the example creates the pipeline in Lines 37--40, spawning a number of worker threads for each stage of the pipeline. The pipeline stages are shown at Lines 11 and 21, respectively; each stage has a similar structure: a non-terminating \lstinline{while} loop that retrieves a task from the stage's input queue (\lstinline{tq1} and \lstinline{tq2} for \lstinline{stage1} and \lstinline{stage2}, respectively), computes the unit of work on the task item (Lines 15 and 25) and then places the result on an output queue (Lines 16 and 26). Functions \lstinline{add_to_queue} and \lstinline{read_from_queue} put a task in an output queue and read a task from an input queue, respectivelly, in a thread safe manner. The code for \lstinline{add_to_queue} was shown in Listing~\ref{lst:simplePipe}.
 
-The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token, \lstinline{EOS}, which threads through the pipeline computation when no more tasks are on the original input queue amd terminates the stages when received (Listing~\ref{convo1}).
+The \emph{first step} to restoration is to remove the threading code; this is a fairly straightforward process, but results in an executable that no-longer terminates. This is due to the fact that there is no termination condition of the \lstinline{while} loops within the stages. A simple repair for this step is to add a termination token, \lstinline{EOS}.When no more tasks are available on the original input queue, \lstinline{EOS} is sent through the pipeline, terminating the stages (Listing~\ref{convo1}).
 
-\begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token},frame=single]
+\begin{lstlisting}[label=convo1, caption={Convolution, Repaired with a Termination Token}]
   if ((int)(task_t)t == EOS) {
     puttask(tq2, (task_t2 *)EOS);
     break;
@@ -2165,7 +2018,7 @@ The \emph{first step} to restoration is to remove the threading code; this is a 
 \noindent
 The next step is to perform \emph{program shaping} which goes through various steps, including \emph{unfolding} the various calls to \lstinline{gettask} and \lstinline{puttask} in the stages, \emph{merging} the stages together, and finally \emph{removing} the intermediate queue between the two stages (leaving the input and output queue; see Listing~\ref{convo2}). 
 
-\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed},frame=single]
+\begin{lstlisting}[label=convo2, caption={Stages merged, unfolded and intermediate queue removed}]
   /* Unfolded gettask function, reutrning t1 as an input task to stage 1 */
   . . .
   r1 = workerStage1(t1);
@@ -2185,7 +2038,7 @@ The final step in the shaping process is to arrive at the code shown in Listing~
 %}
 %\end{lstlisting}
 
-\begin{lstlisting}[label=convo3,caption={Convolution Shaped},frame=single]
+\begin{lstlisting}[label=convo3,caption={Convolution Shaped}]
 for (int i=0; i<NIMGS; i++) {
 	workerStage2(workerStage1(i));
 }
@@ -2212,7 +2065,7 @@ Finally, the fully shaped program from Listing~\ref{convo3} can be parallelised 
 %RunPipeline(NIMGS, NIMGS);
 %\end{lstlisting}
 
-\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB},frame=single]
+\begin{lstlisting}[label=convo4, caption={Convolution Restored with TBB}]
 tbb::parallel_pipeline(
 	ntoken,tbb::make_filter<void,task_t2*>(tbb::filter::serial, Stage1(NIMGS) )
 	& 	tbb::make_filter<task_t2*,int>(tbb::filter::parallel, Stage2() )
@@ -2220,7 +2073,17 @@ tbb::parallel_pipeline(
 
 \subsection{Discussion}
 
-Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchmarks. For all benchmarks we see comparable results in the McCabe metrics, where the TBB version gives a better result, apart from Blackscholes, where the complexity is equal, and Matrix Multiplication, where the complexity actually increases. This is most likely because both of these benchmarks are simple farms, and the TBB logic actually introduces some complexity over simply calling \lstinline{pthread_create} multiple times. The number of lines of code for the TBB version is mostly comparable, with most benchmarks showing a decrease in lines of code. Blackscholes shows a slight increase in LOC, most likely, again, due to the slight increase in code logic for TBB versus the pthread version. In terms of performance, again, the TBB versions are mostly comparable, with the exception of a few cases. For convolution, the TBB version performs 2.4x faster, due to the pthreading version introducing extra overheads in the locking code; Blackscholes also performs very slightly worse, by 0.5 seconds. 
+Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchmarks. For all benchmarks we see comparable results in the McCabe metrics, where the TBB version gives a better result, apart from Blackscholes, where the complexity is equal, and Matrix Multiplication, where the complexity actually increases. This is most likely because both of these benchmarks are simple farms, and the TBB logic actually introduces some complexity over simply calling \lstinline{pthread_create} multiple times. The number of lines of code for the TBB version is mostly comparable, with most benchmarks showing a decrease in lines of code. Blackscholes shows a slight increase in LOC, most likely, again, due to the slight increase in code logic for TBB versus the pthread version. In terms of performance, again, the TBB versions are mostly comparable, with the exception of a few cases. For convolution, the TBB version performs 2.4x faster, due to the pthreading version introducing extra overheads in the locking code; Blackscholes also performs very slightly worse, by 1.28\%.
+
+\subsection{Limitations} 
+
+The methodology presented in this paper is still preliminary and intended to be a foundational step to a more advanced (semi-automated) restoration technique that applies to many different kinds of patterns and applications. As such, we have noted a number of general limitations to the approach, which we document here.
+
+As the transformations are currently applied manually, with the lack of a (semi-automated) tool, mistakes can easily happen as part of that manual transformation. The functionality of the transformed program has to be tested and checked with the original version at each step to ensure validity. However, if a (non-specialised) developer was undertaking this task, without any real direction or structure to parallelise their code, the manual process would undoubtedly take much longer and be a much more error-prone process. Our methodology aims to give a guide to programmers so that they can restore their programs, and act as a basis for future implementation efforts. 
+
+Furthermore, many code bases (including PARSEC) are large and diffuse, containing many files and many hundreds or thousands of lines of code. Applying such a manual technique to large and complex code is a very time consuming process, limiting our choice in use-cases and examples. Knowledge of the use-case is also needed in order to transform it correctly, taking into account subtle structural and algorithmic properties of the underlying source code. Often the most time consuming part of the process is understanding the underlying algorithmic properties, and not in the transformations themselves. 
+
+Our methodology only currently applies to farms and pipelines. A preliminary study of other applications with instances of different types of patterns, such as BSP, reduce, and map, seem to indicate that many of the restoration steps will be different, resulting in different transformation steps depending on the pattern instance to be restored. However, many of the tranformations that we present in this paper to eliminate pthreaded code can still be applied. We intend to pursue this direction as an avenue for future work.
 
 %\begin{table}
 %	\begin{tabular}{|c|c|c|}
@@ -2230,6 +2093,7 @@ Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchma
 %		Blackscholes & Financial & Farm \\
 %		Matrix Multiplication & Computational Mathematics & Farm \\
 %		Mandelbrot & Fractal & Farm \\
+
 %		NQueens & Constraints & Pipeline \\
 %		Cholesky Decomposition & Linear Algebra & Pipeline \\
 %		PGPry & Crypto & Pipeline with Farms \\
@@ -2243,20 +2107,20 @@ Table~\ref{fig:benchmarks2} shows the summary of our results for all the benchma
 \begin{table}
 	\begin{tabular}{|c|c|c|c|c|c|c|c|}
 		\hline \hline
-		\multicolumn{2}{|c|}{\textbf{Benchmark}} & \multicolumn{2}{|c|}{McCabe} & \multicolumn{2}{|c|}{Lines} & \multicolumn{2}{|c|}{Performance}  \\
+		\multicolumn{2}{|c|}{\textbf{Benchmark}} & \multicolumn{2}{|c|}{McCabe} & \multicolumn{2}{|c|}{Lines} & \multicolumn{2}{|c|}{Performance (std dev)}  \\
 		\hline
 		& & Before & After & Before & After & Before & After  \\
 		\hline
-		Blackscholes & F &  29 & 29 & 366 & 393 & 38.5 & 39  \\
-		Matrix Multiplication & F & 9 & 15 & 176 & 146 & 909.4 & 896.5  \\
-		Mandelbrot & F  & 12 & 11 & 145 & 142 & 2.21 & 2.28 \\
-		NQueens & P & 41 & 24 & 421 & 337 & 8.63 & 8.622  \\
-		Cholesky Decomposition & P & 31  & 19 & 321 & 226 & 16.97 & 17.08 \\
-		PGPry & P & 23 & 19 & 210 & 243 & 138.1 & 131 \\
-		Image Convolution & P & 71 & 29 & 714 & 280 & 12.85  & 5.2 \\
+		Blackscholes & F &  29 & 29 & 366 & 393 & 38.5 (0.07) & 39 (0.42)  \\
+		MatMult & F & 9 & 15 & 176 & 146 & 918.7 (24.6) & 922.24 (30.42)  \\
+		Mandelbrot & F  & 12 & 11 & 145 & 142 & 2.21 (0.01) & 2.27 (0.04) \\
+		Cholesky & F & 31  & 19 & 321 & 226 & 16.97 (0.07) & 17.08 (0.02) \\
+		NQueens & P (2) & 41 & 24 & 421 & 337 & 8.63 (0.04) & 8.622 (0.27) \\
+		PGPry & P (2) & 23 & 19 & 210 & 243 & 138.1 (0.23) & 131 (0.10) \\
+		ImageConv & P (1)  & 71 & 29 & 714 & 280 & 12.85 (6.08) & 5.2 (0.02)  \\
 		\hline \hline
 	\end{tabular}
-	\caption{Metrics for each benchmark, where F = Farm, and P = Pipeline; performance times are in seconds on a 28-core machine.}
+	\caption{Metrics for each benchmark, where F = Farm, and P = Pipeline; performance times are in seconds on a 28-core machine. The number of tokens for TBB pipelines are shown in parentheses. }
 	\label{fig:benchmarks2}
 \end{table}
 
@@ -2270,20 +2134,31 @@ The concept of a \emph{systematic}, or \emph{structured} approach to \emph{softw
 Refactoring has roots in Burstall and Darlington's fold/unfold system~\cite{darlington77}, and has been applied to a wide range of applications as an approach to program transformation~\cite{mens_refactoring}, with refactoring tools a feature of popular IDEs including, \textit{i.a.}, Eclipse~\cite{EclipseWeb} and Visual Studio~\cite{VisualStudioWeb}.
 Previous work on parallelisation \textit{via} refactoring has primarily focussed on the introduction and manipulation of parallel pattern libraries in C++~\cite{brownagricultural,DBLP:conf/pdp/JanjicBMHDAG16} and Erlang~\cite{hlpp,DBLP:journals/cai/BarwellBHTB16}. Another approach
 has been the automated introduction of annotations in the form of
-C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallel loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Aldinucci and Danelutto proposed an approach to convert between skeleton configurations and could be used to introduce parallelism, but where the sequential program must also be defined using (sequential) skeletons~\cite{pdcs:nf:99}. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
+C++ attributes~\cite{rio:2018}. Dig proposed an approach to parallelise loops in Java~\cite{dig}, but did not use high-level algorithmic skeletons. Aldinucci and Danelutto proposed an approach to convert between skeleton configurations and could be used to introduce parallelism, but where the sequential program must also be defined using (sequential) skeletons~\cite{pdcs:nf:99}. Thompson et al.~\cite{10.1145/2678015.2682533} proposed an approach to refactor sequential Erlang programs into concurrent versions, using program slicing to guide the refactoring process. However, their approach was not focussed on parallel performance, and did not use restoration or parallel patterns.  
+%
 %
 %\paragraph{Parallel Patterns}
 High-level parallel patterns, sometimes known as \emph{algorithmic skeletons} offer high-level abstraction over low-level concurrency methods~\cite{Asanovic:2009:VPC,DBLP:journals/spe/Gonzalez-VelezL10}.
 A range of pattern/skeleton implementations have been developed for a number of programming languages; these include: RPL~\cite{DBLP:conf/pdp/JanjicBMHDAG16}; Feldspar~\cite{DBLP:conf/ifl/AxelssonCSSEP10}; FastFlow~\cite{doi:10.1002/9781119332015.ch13}; Microsoft's Pattern Parallel Library~\cite{ACM:book/msoft/CampbellM11}; and Intel's Threading Building Blocks (TBB) library~\cite{DBLP:reference/parallel/X11pz}.
-Since patterns are well-defined, rewrites can be used to automatically explore the space of equivalent patterns, e.g.\ optimising for performance~\cite{DBLP:conf/europar/MatsuzakiKIHA04,DBLP:conf/ipps/GorlatchWL99} or generating optimised code as part of a DSL~\cite{DBLP:conf/dagstuhl/Gorlatch03}. Moreover, since patterns are architecture-agnostic, patterns have been similarly implemented for multiple architectures~\cite{DBLP:conf/cgo/HagedornSSGD18,DBLP:conf/parco/ReyesL15}.
+Since patterns are well-defined, rewrites can be used to automatically explore the space of equivalent patterns, e.g.\ optimising for performance~\cite{DBLP:conf/europar/MatsuzakiKIHA04,DBLP:conf/ipps/GorlatchWL99} or generating optimised code as part of a domain-specific language (DSL)~\cite{DBLP:conf/dagstuhl/Gorlatch03}. Moreover, since patterns are architecture-agnostic, patterns have been similarly implemented for multiple architectures~\cite{DBLP:conf/cgo/HagedornSSGD18,DBLP:conf/parco/ReyesL15}.
+SPar~\cite{DBLP:journals/ppl/GrieblerDTF17} is a C++ internal domain-specific-language (DSL) for supporting the development of classic stream parallel applications targetting a FastFlow~\cite{doi:10.1002/9781119332015.ch13} backend. SPar allows the programmer to annotate C++ code with high-level annotations, relating to the streaming and staging properties of the underlying algorithm. A compiler then transforms the SPar annotations into FastFlow code which can then be executed. We believe SPar would be a viable framework to support the introduction of patterns in our methodology. The P3ARSEC benchmark suite~\cite{10.1145/3132710}, offer patterned implementations of the Parsec benchmark suite using pattern-based parallel programming, in contrast to the standard Parsec implementations of pthreads, OpenMP and TBB. P3ARSEC  instead uses a FastFlow backend, and makes use of several parallel patterns, including pipeline, farm, map and reduce. % and iterator. 
+%The paper shows a decreased complexity and code churn over pthreads implementations, with comparable performance. 
 
 \section{Conclusions} \label{sec:Conclusions} 
 In this paper, we have introduced a software restoration methodology for converting legacy-parallel applications into structured parallel code using parallel patterns. This ensures portability, maintainability and adaptivity of parallel code while maintaining, and sometimes even increasing, performance. We also presented transformations to eliminate ad-hoc pthread parallelism from legacy-parallel code, transformations that repair the code from bugs introduced by the elimination step, and , shape the code in order to patternise it. Furthermore, we evaluated out software restoration methodology on a number of realistic benchmarks and use-cases, demonstrating benefit in terms of gained performance, increased adaptivity, portability and maintainability.
+%
+%\subsection{Future Work}
+One of the limitations of the work is the fact that the transformations must be applied manually in their current form. It would be possible to take the transformations presented here and implement them into a semi-automatic refactoring tool, such as ParaFormance\footnote{\url{http://www.paraformance.com/}}, which is a semi-automatic tool for transforming sequential C and C++ applications into parallel patterned versions. The refactorings presented in this paper would be implemented in terms of the pre-conditions and transformation rules of an Abstract Syntax Tree, both of which are described in this paper. Other similar refactorings to introduce patterns into C and C++ applications have previously been described in~\cite{hlpp,grppirefac,brownagricultural,DBLP:conf/pdp/JanjicBMHDAG16} and the restoration refactorings would take a similar direction. 
+%
+We will extend our methodology to take into account many other types of parallel patterns, including reduce, maps, stencil, etc. It's possible that we will see similarities and overlapping ideas in the restoration of different types of patterns. We will catalogue these commonalities in a future paper. 
+%
+We also intend on giving proofs of general soundness that our refactorings conform to their specification and do not change the program's functional behaviour. Proving soundness of refactorings is a complicated and challenging issue, but recent work in the use of Dependent Types~\cite{soundrefac} has allowed us to capture the soundness properties as part of the refactoring implementations. We envisage extending this to prove soundness of concurrency refactorings in a similar way. 
+%
+Lastly, we would like to explore optimisation of the restored application in other domains, such as energy optimisation. Once the code has been refactored into a structured, maintainable code base, it is possible to then apply different kinds of optimisations for energy, memory usage, etc. in a similar way to parallelisation. 
+%We intend to explore this avenue as future work.
 
 
-
-
-%\section*{Acknowledgements}
-%This work was generously supported by the EU Horizon 2020 project, \emph{TeamPlay} (\url{https://www.teamplay-h2020.eu}), grant number 779882, and UK EPSRC \emph{Discovery}, grant number EP/P020631/1.
+\section*{Acknowledgements}
+This work was generously supported by the EU Horizon 2020 project, \emph{TeamPlay} (\url{https://www.teamplay-h2020.eu}), grant number 779882, and UK EPSRC \emph{Discovery}, grant number EP/P020631/1.
 
 

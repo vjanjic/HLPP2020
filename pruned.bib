@@ -1,3 +1,81 @@
+@article{grppi,
+author = {del Rio Astorga, David and Dolz, Manuel F. and Fernández, Javier and García, J. Daniel},
+title = {{A Generic Parallel Pattern Interface for Stream and Data Processing}},
+journal = {Concurrency and Computation: Practice and Experience},
+volume = {29},
+number = {24},
+pages = {e4175},
+keywords = {high-level API, parallel pattern, parallel programming framework, stream processing},
+doi = {https://doi.org/10.1002/cpe.4175},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.4175},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/cpe.4175},
+note = {e4175 cpe.4175},
+abstract = {Summary Current parallel programming frameworks aid developers to a great extent in implementing applications that exploit parallel hardware resources. Nevertheless, developers require additional expertise to properly use and tune them to operate efficiently on specific parallel platforms. On the other hand, porting applications between different parallel programming models and platforms is not straightforward and demands considerable efforts and specific knowledge. Apart from that, the lack of high-level parallel pattern abstractions, in those frameworks, further increases the complexity in developing parallel applications. To pave the way in this direction, this paper proposes GRPPI, a generic and reusable parallel pattern interface for both stream processing and data-intensive C++ applications. GRPPI accommodates a layer between developers and existing parallel programming frameworks targeting multi-core processors, such as C++ threads, OpenMP and Intel TBB, and accelerators, as CUDA Thrust. Furthermore, thanks to its high-level C++ application programming interface and pattern composability features, GRPPI allows users to easily expose parallelism via standalone patterns or patterns compositions matching in sequential applications. We evaluate this interface using an image processing use case and demonstrate its benefits from the usability, flexibility, and performance points of view. Furthermore, we analyze the impact of using stream and data pattern compositions on CPUs, GPUs and heterogeneous configurations.},
+year = {2017}
+}
+
+@inproceedings{soundrefac,
+  author    = {Adam Barwell and Christopher Brown and Susmit Sarkar},
+  title     = {{Proof-Carrying Refactorings: Sound Refactoring for Haskell via Dependent Types}},
+  booktitle = {{International Conference on Functional Programming (ICFP)}},
+  pages     = {1--25},
+  publisher = {In Submission},
+  year      = {2021}
+}
+
+
+
+@article{grppirefac,
+author={Christopher Brown and Vladimir Janjic and Adam Barwell and Jose Daniel García and Kenneth MacKenzie},
+title={{Refactoring GrPPI: Generic Refactoring for Generic Parallelism in C++}},
+journal={International Journal of Parallel Programming},
+volume={48},
+number={4},
+pages={603--625},
+year={2020},
+doi={https://doi.org/10.1007/s10766-020-00667-x}
+}
+
+
+@article{10.1145/3132710,
+author = {De Sensi, Daniele and De Matteis, Tiziano and Torquati, Massimo and Mencagli, Gabriele and Danelutto, Marco},
+title = {Bringing Parallel Patterns Out of the Corner: The P3 ARSEC Benchmark Suite},
+year = {2017},
+issue_date = {December 2017},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {14},
+number = {4},
+issn = {1544-3566},
+url = {https://doi.org/10.1145/3132710},
+doi = {10.1145/3132710},
+abstract = {High-level parallel programming is an active research topic aimed at promoting parallel programming methodologies that provide the programmer with high-level abstractions to develop complex parallel software with reduced time to solution. Pattern-based parallel programming is based on a set of composable and customizable parallel patterns used as basic building blocks in parallel applications. In recent years, a considerable effort has been made in empowering this programming model with features able to overcome shortcomings of early approaches concerning flexibility and performance. In this article, we demonstrate that the approach is flexible and efficient enough by applying it on 12 out of 13 PARSEC applications. Our analysis, conducted on three different multicore architectures, demonstrates that pattern-based parallel programming has reached a good level of maturity, providing comparable results in terms of performance with respect to both other parallel programming methodologies based on pragma-based annotations (i.e., Openmp and OmpSs) and native implementations (i.e., Pthreads). Regarding the programming effort, we also demonstrate a considerable reduction in lines of code and code churn compared to Pthreads and comparable results with respect to other existing implementations.},
+journal = {ACM Trans. Archit. Code Optim.},
+month = oct,
+articleno = {33},
+numpages = {26},
+keywords = {multicore programming, Parallel patterns, parsec, algorithmic skeletons, benchmarking}
+}
+
+@article{DBLP:journals/ppl/GrieblerDTF17,
+  author    = {Dalvan Griebler and
+               Marco Danelutto and
+               Massimo Torquati and
+               Luiz Gustavo Fernandes},
+  title     = {SPar: {A} {DSL} for High-Level and Productive Stream Parallelism},
+  journal   = {Parallel Process. Lett.},
+  volume    = {27},
+  number    = {1},
+  pages     = {1740005:1--1740005:20},
+  year      = {2017},
+  url       = {https://doi.org/10.1142/S0129626417400059},
+  doi       = {10.1142/S0129626417400059},
+  timestamp = {Tue, 29 Dec 2020 18:22:21 +0100},
+  biburl    = {https://dblp.org/rec/journals/ppl/GrieblerDTF17.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+
 @article{10.1145/287000.287001,
   author    = {Jonathan E. Cook and
                Alexander L. Wolf},
